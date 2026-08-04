@@ -116,25 +116,111 @@ describe('HashTool SHA mode', () => {
   })
 })
 
-describe('HashTool MD5 compatibility', () => {
-  it('retains the original two-result layout, warning, calculation and clear semantics', async () => {
+describe('HashTool MD5 mode', () => {
+  it('renders lower and upper digests as compact rows with accessible icon-only copy controls', async () => {
     const user = userEvent.setup()
-    const fetchSpy = vi.spyOn(globalThis, 'fetch')
     render(<HashTool algorithm="MD5" />)
 
     expect(screen.getByText('MD5 已不适合密码存储、数字签名或要求抗碰撞性的安全场景。')).toBeVisible()
     expect(document.querySelector('.sha-result-grid')).toBeNull()
-    expect(screen.getByRole('heading', { name: '小写摘要' })).toBeVisible()
-    expect(screen.getByRole('heading', { name: '大写摘要' })).toBeVisible()
+    const group = document.querySelector('.md5-result-group') as HTMLElement
+    expect(group.querySelectorAll(':scope > .panel')).toHaveLength(1)
+    expect(screen.getByRole('heading', { level: 3, name: 'MD5 摘要' })).toBeVisible()
+    const rows = Array.from(group.querySelectorAll('.digest-row'))
+    expect(rows).toHaveLength(2)
+    expect(rows.map((row) => row.firstElementChild?.textContent)).toEqual(['小写摘要', '大写摘要'])
+
+    const copyButtons = screen.getAllByRole('button', { name: /复制 MD5/ })
+    expect(copyButtons).toHaveLength(2)
+    expect(copyButtons.every((button) => button.hasAttribute('disabled'))).toBe(true)
+    for (const button of copyButtons) {
+      expect(button).toHaveTextContent('')
+      expect(button.querySelector('svg.digest-copy-icon')).not.toBeNull()
+      expect(button).toHaveAttribute('title')
+    }
 
     setInput('abc')
     await user.click(screen.getByRole('button', { name: '计算 MD5' }))
-    expect(screen.getByText('900150983cd24fb0d6963f7d28e17f72')).toBeVisible()
-    expect(screen.getByText('900150983CD24FB0D6963F7D28E17F72')).toBeVisible()
+    const lower = screen.getByLabelText('MD5 小写摘要')
+    const upper = screen.getByLabelText('MD5 大写摘要')
+    expect(lower).toHaveTextContent('900150983cd24fb0d6963f7d28e17f72')
+    expect(upper).toHaveTextContent('900150983CD24FB0D6963F7D28E17F72')
+    expect(lower.textContent).toHaveLength(32)
+    expect(upper.textContent).toHaveLength(32)
+    expect(lower.closest('.digest-row')?.firstElementChild).toHaveTextContent('小写摘要')
+    expect(lower.parentElement).toHaveClass('digest-field')
+    expect(lower.nextElementSibling).toHaveClass('digest-copy-button')
+  })
+
+  it('copies complete lower and upper digests and keeps success or failure feedback structurally stable', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    render(<HashTool algorithm="MD5" />)
+    setInput('abc')
+    await user.click(screen.getByRole('button', { name: '计算 MD5' }))
+
+    const feedback = document.querySelector('.md5-copy-feedback') as HTMLElement
+    const lowerButton = screen.getByRole('button', { name: '复制 MD5 小写' })
+    const lowerField = lowerButton.parentElement
+    await user.click(lowerButton)
+    expect(writeText).toHaveBeenCalledWith('900150983cd24fb0d6963f7d28e17f72')
+    expect(await screen.findByText('MD5 小写摘要已复制到剪贴板。')).toBeVisible()
+    expect(lowerButton.parentElement).toBe(lowerField)
+    expect(document.querySelector('.md5-copy-feedback')).toBe(feedback)
+
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn().mockRejectedValue(new Error('denied')) },
+    })
+    const upperButton = screen.getByRole('button', { name: '复制 MD5 大写' })
+    const upperField = upperButton.parentElement
+    await user.click(upperButton)
+    expect(await screen.findByText('无法复制 MD5 大写摘要，请手动复制摘要。')).toBeVisible()
+    expect(upperButton.parentElement).toBe(upperField)
+    expect(document.querySelector('.md5-copy-feedback')).toBe(feedback)
+  })
+
+  it('preserves empty-input, replacement, clear, warning and local-only semantics', async () => {
+    const user = userEvent.setup()
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    render(<HashTool algorithm="MD5" />)
+
+    await user.click(screen.getByRole('button', { name: '计算 MD5' }))
+    expect(screen.getByLabelText('MD5 小写摘要')).toHaveTextContent('d41d8cd98f00b204e9800998ecf8427e')
+    await user.click(screen.getByRole('button', { name: '复制 MD5 小写' }))
+    expect(await screen.findByText('MD5 小写摘要已复制到剪贴板。')).toBeVisible()
+
+    setInput('abc')
+    await user.click(screen.getByRole('button', { name: '计算 MD5' }))
+    expect(screen.getByLabelText('MD5 小写摘要')).toHaveTextContent('900150983cd24fb0d6963f7d28e17f72')
+    expect(screen.queryByText('MD5 小写摘要已复制到剪贴板。')).not.toBeInTheDocument()
+
     await user.click(screen.getByRole('button', { name: '清空' }))
     expect(screen.getByLabelText('待摘要文本')).toHaveValue('')
     expect(screen.getAllByText('等待计算')).toHaveLength(2)
+    expect(screen.queryByText('MD5 摘要计算完成。')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /复制 MD5/ }).every((button) => button.hasAttribute('disabled'))).toBe(true)
     expect(fetchSpy).not.toHaveBeenCalled()
     fetchSpy.mockRestore()
+  })
+
+  it('keeps compact digest controls attached to their fields at narrow widths', async () => {
+    const user = userEvent.setup()
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 320 })
+    render(<HashTool algorithm="MD5" />)
+    setInput('窄屏 Unicode')
+    await user.click(screen.getByRole('button', { name: '计算 MD5' }))
+
+    const group = document.querySelector('.md5-result-group') as HTMLElement
+    expect(group.querySelectorAll('.digest-row')).toHaveLength(2)
+    for (const label of ['MD5 小写摘要', 'MD5 大写摘要']) {
+      const output = screen.getByLabelText(label)
+      expect(output).toHaveClass('digest-output')
+      expect(output.closest('.digest-field')).not.toBeNull()
+      expect(output.nextElementSibling).toHaveClass('digest-copy-button')
+    }
   })
 })

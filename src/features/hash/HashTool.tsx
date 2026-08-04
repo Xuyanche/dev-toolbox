@@ -1,11 +1,62 @@
 import { useState } from 'react'
 import { calculateMd5, calculateSha, SHA_ALGORITHMS, type DigestVariants, type ShaDigestBatch } from './hash'
-import { CopyButton, Panel, StatusMessage, TextAreaField, ToolHeader, type StatusState } from '../../shell/ui'
+import { Panel, StatusMessage, TextAreaField, ToolHeader, type StatusState } from '../../shell/ui'
+
+function DigestResultRow({
+  label,
+  outputLabel,
+  copyLabel,
+  value,
+  onCopy,
+  shaCompatibility = false,
+}: {
+  label: string
+  outputLabel: string
+  copyLabel: string
+  value: string
+  onCopy: () => void
+  shaCompatibility?: boolean
+}) {
+  const compatibilityClass = (className: string) => shaCompatibility ? ` ${className}` : ''
+
+  return (
+    <div className={`digest-row${compatibilityClass('sha-digest-row')}`}>
+      <span className={`digest-variant-label${compatibilityClass('sha-variant-label')}`}>{label}</span>
+      <div className={`digest-field${compatibilityClass('sha-digest-field')}`}>
+        <output
+          className={`code-output digest-output${compatibilityClass('sha-digest-output')}`}
+          aria-label={outputLabel}
+        >
+          {value || '等待计算'}
+        </output>
+        <button
+          className={`digest-copy-button${compatibilityClass('sha-copy-button')}`}
+          type="button"
+          aria-label={copyLabel}
+          title={`${copyLabel}摘要`}
+          disabled={!value}
+          onClick={onCopy}
+        >
+          <svg
+            className={`digest-copy-icon${compatibilityClass('sha-copy-icon')}`}
+            viewBox="0 0 20 20"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <rect x="6.5" y="6.5" width="9" height="10" rx="1.5" />
+            <path d="M13.5 6.5V5A1.5 1.5 0 0 0 12 3.5H5A1.5 1.5 0 0 0 3.5 5v8A1.5 1.5 0 0 0 5 14.5h1.5" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  )
+}
 
 export function HashTool({ algorithm }: { algorithm: 'MD5' | 'SHA' }) {
   const [input, setInput] = useState('')
   const [md5Result, setMd5Result] = useState<DigestVariants | null>(null)
   const [shaResult, setShaResult] = useState<ShaDigestBatch | null>(null)
+  const [md5CopyStatus, setMd5CopyStatus] = useState<StatusState>(null)
   const [shaCopyStatus, setShaCopyStatus] = useState<StatusState>(null)
   const [status, setStatus] = useState<StatusState>(null)
   const [busy, setBusy] = useState(false)
@@ -13,7 +64,8 @@ export function HashTool({ algorithm }: { algorithm: 'MD5' | 'SHA' }) {
   async function run() {
     setBusy(true)
     setStatus(null)
-    if (algorithm === 'SHA') setShaCopyStatus(null)
+    if (algorithm === 'MD5') setMd5CopyStatus(null)
+    else setShaCopyStatus(null)
     const next = algorithm === 'MD5' ? calculateMd5(input) : await calculateSha(input)
     setBusy(false)
     if (next.ok) {
@@ -31,18 +83,19 @@ export function HashTool({ algorithm }: { algorithm: 'MD5' | 'SHA' }) {
     setInput('')
     setMd5Result(null)
     setShaResult(null)
+    setMd5CopyStatus(null)
     setShaCopyStatus(null)
     setStatus(null)
   }
 
-  async function copyShaDigest(value: string, label: string) {
+  async function copyDigest(value: string, label: string, setCopyStatus: (next: StatusState) => void) {
     if (!value) return
     try {
       if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable')
       await navigator.clipboard.writeText(value)
-      setShaCopyStatus({ kind: 'success', message: `${label}已复制到剪贴板。` })
+      setCopyStatus({ kind: 'success', message: `${label}已复制到剪贴板。` })
     } catch {
-      setShaCopyStatus({ kind: 'error', message: `无法复制 ${label}，请手动复制摘要。` })
+      setCopyStatus({ kind: 'error', message: `无法复制 ${label}，请手动复制摘要。` })
     }
   }
 
@@ -73,61 +126,46 @@ export function HashTool({ algorithm }: { algorithm: 'MD5' | 'SHA' }) {
             const variants = shaResult?.[entry.id]
             return (
               <Panel title={entry.label} key={entry.id}>
-                <div className="sha-digest-row">
-                  <span className="sha-variant-label">小写摘要</span>
-                  <div className="sha-digest-field">
-                    <output className="code-output sha-digest-output" aria-label={`${entry.label} 小写摘要`}>
-                      {variants?.lower || '等待计算'}
-                    </output>
-                    <button
-                      className="sha-copy-button"
-                      type="button"
-                      aria-label={`复制 ${entry.label} 小写`}
-                      title={`复制 ${entry.label} 小写摘要`}
-                      disabled={!variants?.lower}
-                      onClick={() => copyShaDigest(variants?.lower ?? '', `${entry.label} 小写摘要`)}
-                    >
-                      <svg className="sha-copy-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-                        <rect x="6.5" y="6.5" width="9" height="10" rx="1.5" />
-                        <path d="M13.5 6.5V5A1.5 1.5 0 0 0 12 3.5H5A1.5 1.5 0 0 0 3.5 5v8A1.5 1.5 0 0 0 5 14.5h1.5" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-                <div className="sha-digest-row">
-                  <span className="sha-variant-label">大写摘要</span>
-                  <div className="sha-digest-field">
-                    <output className="code-output sha-digest-output" aria-label={`${entry.label} 大写摘要`}>
-                      {variants?.upper || '等待计算'}
-                    </output>
-                    <button
-                      className="sha-copy-button"
-                      type="button"
-                      aria-label={`复制 ${entry.label} 大写`}
-                      title={`复制 ${entry.label} 大写摘要`}
-                      disabled={!variants?.upper}
-                      onClick={() => copyShaDigest(variants?.upper ?? '', `${entry.label} 大写摘要`)}
-                    >
-                      <svg className="sha-copy-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-                        <rect x="6.5" y="6.5" width="9" height="10" rx="1.5" />
-                        <path d="M13.5 6.5V5A1.5 1.5 0 0 0 12 3.5H5A1.5 1.5 0 0 0 3.5 5v8A1.5 1.5 0 0 0 5 14.5h1.5" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
+                <DigestResultRow
+                  label="小写摘要"
+                  outputLabel={`${entry.label} 小写摘要`}
+                  copyLabel={`复制 ${entry.label} 小写`}
+                  value={variants?.lower ?? ''}
+                  onCopy={() => copyDigest(variants?.lower ?? '', `${entry.label} 小写摘要`, setShaCopyStatus)}
+                  shaCompatibility
+                />
+                <DigestResultRow
+                  label="大写摘要"
+                  outputLabel={`${entry.label} 大写摘要`}
+                  copyLabel={`复制 ${entry.label} 大写`}
+                  value={variants?.upper ?? ''}
+                  onCopy={() => copyDigest(variants?.upper ?? '', `${entry.label} 大写摘要`, setShaCopyStatus)}
+                  shaCompatibility
+                />
               </Panel>
             )
           })}
-          <div className="sha-copy-feedback"><StatusMessage status={shaCopyStatus} /></div>
+          <div className="digest-copy-feedback sha-copy-feedback"><StatusMessage status={shaCopyStatus} /></div>
         </div>
       ) : (
-        <div className="result-stack">
-          <Panel title="小写摘要" aside={<CopyButton value={md5Result?.lower ?? ''} label="复制小写" />}>
-            <output className="code-output">{md5Result?.lower || '等待计算'}</output>
+        <div className="md5-result-group">
+          <Panel title="MD5 摘要">
+            <DigestResultRow
+              label="小写摘要"
+              outputLabel="MD5 小写摘要"
+              copyLabel="复制 MD5 小写"
+              value={md5Result?.lower ?? ''}
+              onCopy={() => copyDigest(md5Result?.lower ?? '', 'MD5 小写摘要', setMd5CopyStatus)}
+            />
+            <DigestResultRow
+              label="大写摘要"
+              outputLabel="MD5 大写摘要"
+              copyLabel="复制 MD5 大写"
+              value={md5Result?.upper ?? ''}
+              onCopy={() => copyDigest(md5Result?.upper ?? '', 'MD5 大写摘要', setMd5CopyStatus)}
+            />
           </Panel>
-          <Panel title="大写摘要" aside={<CopyButton value={md5Result?.upper ?? ''} label="复制大写" />}>
-            <output className="code-output">{md5Result?.upper || '等待计算'}</output>
-          </Panel>
+          <div className="digest-copy-feedback md5-copy-feedback"><StatusMessage status={md5CopyStatus} /></div>
         </div>
       )}
 
