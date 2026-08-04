@@ -4,7 +4,7 @@ const categorySummaries = [
   { icon: 'R', name: '非对称加密', tools: 'RSA', description: '生成或导入密钥，完成 RSA 加解密与签名验证。' },
   { icon: 'H', name: '摘要算法', tools: 'MD5 · SHA', description: '计算 MD5，或同时生成 SHA-1、SHA-256、SHA-384、SHA-512 摘要。' },
   { icon: 'T', name: '时间工具', tools: '时间戳', description: '在 Unix 时间戳、ISO 时间与可读日期之间转换。' },
-  { icon: 'E', name: '编码工具', tools: 'URL 编解码 · Base64 · JWT', description: '处理常见文本编码，并在本地解析、校验或生成 JWT。' },
+  { icon: 'E', name: '编码工具', tools: 'URL 编解码 · Base64 · JWT · JSON', description: '处理常见文本编码、令牌和 JSON 格式化、树状查看与转义。' },
 ] as const
 
 export function HomePage() {

@@ -21,7 +21,7 @@ describe('toolbox shell', () => {
 
     const mobileNav = screen.getByRole('navigation', { name: '移动工具导航' })
     expect(within(mobileNav).getAllByRole('button').map((button) => button.textContent))
-      .toEqual(['色子模拟器', '随机数生成器', 'AES', 'DES', 'SM4', 'RSA', 'MD5', 'SHA', '时间戳', 'URL 编解码', 'Base64', 'JWT'])
+      .toEqual(['色子模拟器', '随机数生成器', 'AES', 'DES', 'SM4', 'RSA', 'MD5', 'SHA', '时间戳', 'URL 编解码', 'Base64', 'JWT', 'JSON'])
     expect(mobileNav.querySelector('[aria-current="page"]')).toBeNull()
     expect(screen.getAllByRole('button', { name: '返回介绍首页' })).toHaveLength(2)
   })
@@ -166,7 +166,7 @@ describe('toolbox shell', () => {
     render(<App />)
     const mobileNav = screen.getByRole('navigation', { name: '移动工具导航' })
     expect(within(mobileNav).getAllByRole('group')).toHaveLength(6)
-    expect(within(mobileNav).getAllByRole('button')).toHaveLength(12)
+    expect(within(mobileNav).getAllByRole('button')).toHaveLength(13)
     expect(within(mobileNav).getByRole('button', { name: 'SHA' })).toBeVisible()
     expect(screen.getByRole('region', { name: '开发者工具箱' })).toBeVisible()
     await user.click(within(mobileNav).getByRole('button', { name: 'SHA' }))
@@ -189,6 +189,22 @@ describe('toolbox shell', () => {
     expect(screen.getByRole('region', { name: 'JWT' })).toBeVisible()
     expect(within(desktopNav).getByRole('button', { name: /JWT/ })).toHaveAttribute('aria-current', 'page')
     expect(within(mobileNav).getByRole('button', { name: 'JWT' })).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('opens JSON from the encoding group after JWT and keeps its active state in both navigations', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    const desktopNav = screen.getByRole('navigation', { name: '工具导航' })
+    const mobileNav = screen.getByRole('navigation', { name: '移动工具导航' })
+
+    await user.click(within(desktopNav).getByRole('button', { name: '编码工具' }))
+    const encodingButtons = within(desktopNav).getAllByRole('button').filter((button) => button.classList.contains('nav-item'))
+    expect(encodingButtons.map((button) => button.querySelector('strong')?.textContent)).toEqual(['URL 编解码', 'Base64', 'JWT', 'JSON'])
+
+    await user.click(within(desktopNav).getByRole('button', { name: /JSON/ }))
+    expect(screen.getByRole('region', { name: 'JSON' })).toBeVisible()
+    expect(within(desktopNav).getByRole('button', { name: /JSON/ })).toHaveAttribute('aria-current', 'page')
+    expect(within(mobileNav).getByRole('button', { name: 'JSON' })).toHaveAttribute('aria-current', 'page')
   })
 })
 

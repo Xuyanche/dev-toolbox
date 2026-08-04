@@ -3,13 +3,14 @@ import { DiceSimulatorTool } from '../features/dice/DiceSimulatorTool'
 import { EncodingTool } from '../features/encoding/EncodingTool'
 import { HashTool } from '../features/hash/HashTool'
 import { HomePage } from '../features/home/HomePage'
+import { JsonTool } from '../features/json/JsonTool'
 import { JwtTool } from '../features/jwt/JwtTool'
 import { RandomNumberGeneratorTool } from '../features/random-number/RandomNumberGeneratorTool'
 import { RsaTool } from '../features/rsa/RsaTool'
 import { SymmetricCryptoTool } from '../features/symmetric/SymmetricCryptoTool'
 import { TimestampTool } from '../features/timestamp/TimestampTool'
 
-type ToolId = 'aes' | 'base64' | 'des' | 'dice' | 'jwt' | 'md5' | 'random-number' | 'rsa' | 'sha' | 'sm4' | 'timestamp' | 'url'
+type ToolId = 'aes' | 'base64' | 'des' | 'dice' | 'json' | 'jwt' | 'md5' | 'random-number' | 'rsa' | 'sha' | 'sm4' | 'timestamp' | 'url'
 type ToolGroupId = 'random' | 'symmetric' | 'asymmetric' | 'digest' | 'time' | 'encoding'
 
 interface ToolDefinition {
@@ -73,6 +74,7 @@ const toolGroups: ToolGroup[] = [
       { id: 'url', name: 'URL 编解码', short: '百分号编码', icon: '%', element: <EncodingTool kind="url" /> },
       { id: 'base64', name: 'Base64', short: '文本编解码', icon: 'B64', element: <EncodingTool kind="base64" /> },
       { id: 'jwt', name: 'JWT', short: '令牌生成与解析', icon: 'JWT', element: <JwtTool /> },
+      { id: 'json', name: 'JSON', short: '格式化与转义', icon: '{}', element: <JsonTool /> },
     ],
   },
 ]

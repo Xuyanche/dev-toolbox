@@ -12,7 +12,7 @@ describe('HomePage', () => {
       expect(within(homepage).getByRole('heading', { name })).toBeVisible()
     }
     expect(within(homepage).getByText('MD5 · SHA')).toBeVisible()
-    expect(within(homepage).getByText('URL 编解码 · Base64 · JWT')).toBeVisible()
+    expect(within(homepage).getByText('URL 编解码 · Base64 · JWT · JSON')).toBeVisible()
   })
 
   it.each([320, 390])('keeps the introduction available at %ipx', (width) => {
