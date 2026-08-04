@@ -1,10 +1,16 @@
 import { useState, type ReactNode } from 'react'
+import { DiceSimulatorTool } from '../features/dice/DiceSimulatorTool'
 import { EncodingTool } from '../features/encoding/EncodingTool'
 import { HashTool } from '../features/hash/HashTool'
+import { HomePage } from '../features/home/HomePage'
+import { JwtTool } from '../features/jwt/JwtTool'
+import { RandomNumberGeneratorTool } from '../features/random-number/RandomNumberGeneratorTool'
 import { RsaTool } from '../features/rsa/RsaTool'
+import { SymmetricCryptoTool } from '../features/symmetric/SymmetricCryptoTool'
 import { TimestampTool } from '../features/timestamp/TimestampTool'
 
-type ToolId = 'base64' | 'md5' | 'sha1' | 'rsa' | 'timestamp' | 'url'
+type ToolId = 'aes' | 'base64' | 'des' | 'dice' | 'jwt' | 'md5' | 'random-number' | 'rsa' | 'sha' | 'sm4' | 'timestamp' | 'url'
+type ToolGroupId = 'random' | 'symmetric' | 'asymmetric' | 'digest' | 'time' | 'encoding'
 
 interface ToolDefinition {
   id: ToolId
@@ -15,12 +21,29 @@ interface ToolDefinition {
 }
 
 interface ToolGroup {
-  id: 'asymmetric' | 'digest' | 'time' | 'encoding'
+  id: ToolGroupId
   name: string
   tools: ToolDefinition[]
 }
 
 const toolGroups: ToolGroup[] = [
+  {
+    id: 'random',
+    name: '随机数工具',
+    tools: [
+      { id: 'dice', name: '色子模拟器', short: '多面骰子组合', icon: 'D', element: <DiceSimulatorTool /> },
+      { id: 'random-number', name: '随机数生成器', short: '范围与批量', icon: '#', element: <RandomNumberGeneratorTool /> },
+    ],
+  },
+  {
+    id: 'symmetric',
+    name: '对称加密',
+    tools: [
+      { id: 'aes', name: 'AES', short: '现代分组加密', icon: 'AE', element: <SymmetricCryptoTool algorithm='AES' /> },
+      { id: 'des', name: 'DES', short: '遗留系统兼容', icon: 'DE', element: <SymmetricCryptoTool algorithm='DES' /> },
+      { id: 'sm4', name: 'SM4', short: '国密分组加密', icon: 'S4', element: <SymmetricCryptoTool algorithm='SM4' /> },
+    ],
+  },
   {
     id: 'asymmetric',
     name: '非对称加密',
@@ -33,7 +56,7 @@ const toolGroups: ToolGroup[] = [
     name: '摘要算法',
     tools: [
       { id: 'md5', name: 'MD5', short: '消息摘要', icon: 'M5', element: <HashTool algorithm="MD5" /> },
-      { id: 'sha1', name: 'SHA-1', short: '消息摘要', icon: 'S1', element: <HashTool algorithm="SHA-1" /> },
+      { id: 'sha', name: 'SHA', short: '四种 SHA 摘要', icon: 'S4', element: <HashTool algorithm="SHA" /> },
     ],
   },
   {
@@ -49,6 +72,7 @@ const toolGroups: ToolGroup[] = [
     tools: [
       { id: 'url', name: 'URL 编解码', short: '百分号编码', icon: '%', element: <EncodingTool kind="url" /> },
       { id: 'base64', name: 'Base64', short: '文本编解码', icon: 'B64', element: <EncodingTool kind="base64" /> },
+      { id: 'jwt', name: 'JWT', short: '令牌生成与解析', icon: 'JWT', element: <JwtTool /> },
     ],
   },
 ]
@@ -56,30 +80,54 @@ const toolGroups: ToolGroup[] = [
 const tools = toolGroups.flatMap((group) => group.tools)
 
 export function App() {
-  const [active, setActive] = useState<ToolId>('rsa')
+  const [active, setActive] = useState<ToolId | null>(null)
+  const [expandedGroup, setExpandedGroup] = useState<ToolGroupId | null>(null)
   const cryptoSupported = Boolean(globalThis.crypto?.subtle)
+  const secureRandomSupported = Boolean(globalThis.crypto?.getRandomValues)
+
+  function selectTool(groupId: ToolGroupId, toolId: ToolId) {
+    setExpandedGroup(groupId)
+    setActive(toolId)
+  }
+
+  function showHome() {
+    setActive(null)
+    setExpandedGroup(null)
+  }
 
   return (
-    <div className="app-shell">
+    <div className='app-shell'>
       <aside className="sidebar">
-        <div className="brand">
+        <button className='brand brand-home' type='button' aria-label='返回介绍首页' onClick={showHome}>
           <div className="brand-mark" aria-hidden="true"><span>&lt;</span><span>/</span><span>&gt;</span></div>
           <div><strong>Dev Toolbox</strong><span>LOCAL UTILITIES</span></div>
-        </div>
-        <nav aria-label="工具导航">
+        </button>
+        <nav aria-label='工具导航'>
           {toolGroups.map((group) => (
-            <section className="nav-group" role="group" aria-labelledby={`desktop-group-${group.id}`} key={group.id}>
-              <span className="nav-group-label" id={`desktop-group-${group.id}`}>{group.name}</span>
-              <div className="nav-group-tools">
+            <section className='nav-group' role='group' aria-labelledby={`desktop-group-${group.id}`} key={group.id}>
+              <button
+                className='nav-group-toggle'
+                id={`desktop-group-${group.id}`}
+                type='button'
+                aria-expanded={expandedGroup === group.id}
+                aria-controls={`desktop-tools-${group.id}`}
+                onClick={() => setExpandedGroup((current) => current === group.id ? null : group.id)}
+              >
+                <span className='nav-group-title'>{group.name}</span>
+                <span className='nav-group-chevron' aria-hidden='true'>
+                  <svg viewBox='0 0 16 16' focusable='false'><path d='M3 5.5 8 10.5 13 5.5' /></svg>
+                </span>
+              </button>
+              <div className='nav-group-tools' id={`desktop-tools-${group.id}`} hidden={expandedGroup !== group.id}>
                 {group.tools.map((tool) => (
                   <button
                     key={tool.id}
-                    type="button"
+                    type='button'
                     className={`nav-item ${active === tool.id ? 'active' : ''}`}
                     aria-current={active === tool.id ? 'page' : undefined}
-                    onClick={() => setActive(tool.id)}
+                    onClick={() => selectTool(group.id, tool.id)}
                   >
-                    <span className="nav-icon" aria-hidden="true">{tool.icon}</span>
+                    <span className='nav-icon' aria-hidden='true'>{tool.icon}</span>
                     <span><strong>{tool.name}</strong><small>{tool.short}</small></span>
                   </button>
                 ))}
@@ -95,7 +143,7 @@ export function App() {
 
       <main className="main-content">
         <div className="mobile-header">
-          <div className="brand"><div className="brand-mark" aria-hidden="true">&lt;/&gt;</div><strong>Dev Toolbox</strong></div>
+          <button className='brand brand-home' type='button' aria-label='返回介绍首页' onClick={showHome}><div className="brand-mark" aria-hidden="true">&lt;/&gt;</div><strong>Dev Toolbox</strong></button>
           <span className="local-pill">● LOCAL</span>
         </div>
         <div className="mobile-nav" role="navigation" aria-label="移动工具导航">
@@ -109,7 +157,7 @@ export function App() {
                     type="button"
                     className={active === tool.id ? 'active' : ''}
                     aria-current={active === tool.id ? 'page' : undefined}
-                    onClick={() => setActive(tool.id)}
+                    onClick={() => selectTool(group.id, tool.id)}
                   >
                     {tool.name}
                   </button>
@@ -118,9 +166,13 @@ export function App() {
             </section>
           ))}
         </div>
-        {!cryptoSupported ? (
-          <div className="notice notice-danger" role="alert"><strong>浏览器能力不足</strong><span>SHA-1 和 RSA 需要 Web Crypto API，请通过 HTTPS 使用现代浏览器。</span></div>
+        {!secureRandomSupported ? (
+          <div className='notice notice-danger' role='alert'><strong>安全随机源不可用</strong><span>色子模拟器和随机数生成器需要浏览器安全随机 API，不会降级使用 Math.random()。</span></div>
         ) : null}
+        {!cryptoSupported ? (
+          <div className="notice notice-danger" role="alert"><strong>浏览器能力不足</strong><span>SHA、RSA 和 JWT 需要 Web Crypto API，请通过 HTTPS 使用现代浏览器。</span></div>
+        ) : null}
+        {active === null ? <HomePage /> : null}
         {tools.map((tool) => (
           <section key={tool.id} hidden={active !== tool.id} aria-label={tool.name}>
             {tool.element}

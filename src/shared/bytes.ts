@@ -33,6 +33,35 @@ export function base64ToBytes(value: string): ToolResult<Uint8Array> {
   }
 }
 
+export function bytesToBase64Url(bytes: Uint8Array): string {
+  return bytesToBase64(bytes).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '')
+}
+
+export function base64UrlToBytes(value: string): ToolResult<Uint8Array> {
+  if (!/^[A-Za-z0-9_-]*$/.test(value) || value.length % 4 === 1) {
+    return failure('invalid-input', 'Base64URL 格式无效，请使用无填充的 URL 安全字符。')
+  }
+
+  const padding = '='.repeat((4 - value.length % 4) % 4)
+  const decoded = base64ToBytes(value.replaceAll('-', '+').replaceAll('_', '/') + padding)
+  if (!decoded.ok || bytesToBase64Url(decoded.value) !== value) {
+    return failure('invalid-input', 'Base64URL 格式无效或不是规范编码。')
+  }
+  return decoded
+}
+
 export function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+}
+
+export function hexToBytes(value: string): ToolResult<Uint8Array> {
+  const normalized = value.trim()
+  if (normalized.length % 2 !== 0 || !/^[0-9a-fA-F]*$/.test(normalized)) {
+    return failure('invalid-input', 'HEX 格式无效，必须使用完整的两位十六进制字节。')
+  }
+  const bytes = new Uint8Array(normalized.length / 2)
+  for (let index = 0; index < bytes.length; index += 1) {
+    bytes[index] = Number.parseInt(normalized.slice(index * 2, index * 2 + 2), 16)
+  }
+  return success(bytes)
 }

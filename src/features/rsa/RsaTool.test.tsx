@@ -1,5 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { RsaTool } from './RsaTool'
 import { RSA_PLAINTEXT_LIMIT } from './rsa'
 
@@ -19,21 +18,19 @@ describe('RSA tool layout', () => {
     expect(heading?.nextElementSibling).toBe(plaintext)
   })
 
-  it('updates UTF-8 bytes, marks overflow, and disables encryption over the limit', async () => {
-    const user = userEvent.setup()
+  it('updates UTF-8 bytes, marks overflow, and disables encryption over the limit', () => {
     render(<RsaTool />)
 
     const publicKey = screen.getByLabelText('SPKI 公钥 PEM')
     const plaintext = screen.getByLabelText('明文')
     const encryptButton = screen.getByRole('button', { name: '公钥加密' })
 
-    await user.type(publicKey, 'key')
-    await user.type(plaintext, '你')
+    fireEvent.change(publicKey, { target: { value: 'key' } })
+    fireEvent.change(plaintext, { target: { value: '你' } })
     expect(screen.getByText(`3 / ${RSA_PLAINTEXT_LIMIT} 字节`)).not.toHaveClass('danger-text')
     expect(encryptButton).toBeEnabled()
 
-    await user.clear(plaintext)
-    await user.type(plaintext, 'a'.repeat(RSA_PLAINTEXT_LIMIT + 1))
+    fireEvent.change(plaintext, { target: { value: 'a'.repeat(RSA_PLAINTEXT_LIMIT + 1) } })
     expect(screen.getByText(`${RSA_PLAINTEXT_LIMIT + 1} / ${RSA_PLAINTEXT_LIMIT} 字节`)).toHaveClass('danger-text')
     expect(encryptButton).toBeDisabled()
   })
