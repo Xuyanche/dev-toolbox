@@ -1,0 +1,18 @@
+{
+  "tools": {
+    "dice": true,
+    "random-number": true,
+    "aes": true,
+    "des": false,
+    "sm4": true,
+    "rsa": true,
+    "md5": true,
+    "sha": true,
+    "timestamp": true,
+    "url": true,
+    "unicode": true,
+    "base64": true,
+    "jwt": true,
+    "json": true
+  }
+}

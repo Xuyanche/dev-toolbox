@@ -20,6 +20,7 @@ export const SYMMETRIC_CAPABILITIES: Record<SymmetricAlgorithm, AlgorithmCapabil
   AES: {
     keyBytes: [16, 24, 32], blockBytes: 16, defaultMode: 'CBC',
     modes: [
+      { mode: 'ECB', paddings: ['pkcs7', 'none'], parameter: null, parameterBytes: null },
       { mode: 'CBC', paddings: ['pkcs7', 'none'], parameter: 'IV', parameterBytes: 16 },
       { mode: 'CTR', paddings: ['none'], parameter: 'counter', parameterBytes: 16 },
       { mode: 'GCM', paddings: ['none'], parameter: 'nonce', parameterBytes: 12 },

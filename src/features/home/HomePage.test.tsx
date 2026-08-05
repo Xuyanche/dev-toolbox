@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react'
+import { DEFAULT_TOOL_AVAILABILITY, getEnabledToolGroups } from '../../shell/toolRegistry'
 import { HomePage } from './HomePage'
 
 describe('HomePage', () => {
@@ -12,7 +13,22 @@ describe('HomePage', () => {
       expect(within(homepage).getByRole('heading', { name })).toBeVisible()
     }
     expect(within(homepage).getByText('MD5 · SHA')).toBeVisible()
-    expect(within(homepage).getByText('URL 编解码 · Base64 · JWT · JSON')).toBeVisible()
+    expect(within(homepage).getByText('AES · SM4')).toBeVisible()
+    expect(within(homepage).getByText('URL 编解码 · Unicode · Base64 · JWT · JSON')).toBeVisible()
+  })
+
+  it('uses the enabled directory and omits empty categories', () => {
+    const groups = getEnabledToolGroups({
+      ...DEFAULT_TOOL_AVAILABILITY,
+      des: true,
+      rsa: false,
+      json: false,
+    })
+    render(<HomePage groups={groups} />)
+    const homepage = screen.getByRole('region', { name: '开发者工具箱' })
+    expect(within(homepage).getByText('AES · DES · SM4')).toBeVisible()
+    expect(within(homepage).queryByRole('heading', { name: '非对称加密' })).not.toBeInTheDocument()
+    expect(within(homepage).getByText('URL 编解码 · Unicode · Base64 · JWT')).toBeVisible()
   })
 
   it.each([320, 390])('keeps the introduction available at %ipx', (width) => {

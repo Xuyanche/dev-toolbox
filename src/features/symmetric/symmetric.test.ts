@@ -9,6 +9,7 @@ function hex(value: string): Uint8Array {
 }
 
 const vectors: Array<{ algorithm: SymmetricAlgorithm; mode: CipherMode; key: string; parameter?: string; plain: string; cipher: string }> = [
+  { algorithm: 'AES', mode: 'ECB', key: '2b7e151628aed2a6abf7158809cf4f3c', plain: '6bc1bee22e409f96e93d7e117393172a', cipher: '3ad77bb40d7a3660a89ecaf32466ef97' },
   { algorithm: 'AES', mode: 'CBC', key: '2b7e151628aed2a6abf7158809cf4f3c', parameter: '000102030405060708090a0b0c0d0e0f', plain: '6bc1bee22e409f96e93d7e117393172a', cipher: '7649abac8119b246cee98e9b12e9197d' },
   { algorithm: 'AES', mode: 'CTR', key: '2b7e151628aed2a6abf7158809cf4f3c', parameter: 'f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff', plain: '6bc1bee22e409f96e93d7e117393172a', cipher: '874d6191b620e3261bef6864990db6ce' },
   { algorithm: 'AES', mode: 'GCM', key: '00000000000000000000000000000000', parameter: '000000000000000000000000', plain: '', cipher: '58e2fccefa7e3061367f1d57a4e7455a' },
@@ -36,6 +37,17 @@ describe('symmetric adapters', () => {
     if (!encrypted.ok) return
     const decrypted = await executeSymmetric({ ...base, operation: 'decrypt', input: encrypted.value })
     expect(decrypted.ok && bytesToHex(decrypted.value)).toBe(bytesToHex(base.input))
+  })
+
+  it('round trips AES-ECB with PKCS#7 and rejects an IV or unaligned no-padding input', async () => {
+    const base: SymmetricCommand = { operation: 'encrypt', algorithm: 'AES', mode: 'ECB', padding: 'pkcs7', input: utf8Bytes('ECB 文本'), key: hex('000102030405060708090a0b0c0d0e0f') }
+    const encrypted = await executeSymmetric(base)
+    expect(encrypted.ok).toBe(true)
+    if (!encrypted.ok) return
+    const decrypted = await executeSymmetric({ ...base, operation: 'decrypt', input: encrypted.value })
+    expect(decrypted.ok && bytesToHex(decrypted.value)).toBe(bytesToHex(base.input))
+    expect(validateSymmetricCommand({ ...base, parameter: new Uint8Array(16) })).toMatchObject({ ok: false })
+    expect(validateSymmetricCommand({ ...base, padding: 'none', input: new Uint8Array(15) })).toMatchObject({ ok: false })
   })
 
   it('validates key, mode parameters and block alignment', () => {

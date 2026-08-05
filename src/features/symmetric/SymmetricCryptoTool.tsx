@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { base64ToBytes, bytesToBase64, bytesToHex, bytesToUtf8, hexToBytes, utf8Bytes } from '../../shared/bytes'
-import { CopyButton, Panel, Segmented, StatusMessage, TextAreaField, ToolHeader, type StatusState } from '../../shell/ui'
+import { FieldIconButton, Panel, Segmented, StatusMessage, ToolHeader, type StatusState } from '../../shell/ui'
 import { getModeCapability, SYMMETRIC_CAPABILITIES, type CipherMode, type PaddingMode, type SymmetricAlgorithm } from './capabilities'
 import { executeSymmetric } from './symmetric'
 
@@ -17,6 +17,48 @@ function encodeBinary(value: Uint8Array, encoding: BinaryEncoding) {
   return encoding === 'hex' ? bytesToHex(value) : bytesToBase64(value)
 }
 
+function SymmetricTextField({
+  label,
+  value,
+  onChange,
+  readOnly = false,
+  copyLabel,
+  deleteLabel,
+  onCopy,
+  onDelete,
+}: {
+  label: string
+  value: string
+  onChange?: (value: string) => void
+  readOnly?: boolean
+  copyLabel: string
+  deleteLabel?: string
+  onCopy: () => void
+  onDelete?: () => void
+}) {
+  return (
+    <div className="field symmetric-text-field">
+      <div className="field-heading">
+        <span className="field-label">{label}</span>
+        <div className="symmetric-field-actions">
+          <FieldIconButton kind="copy" className="symmetric-copy-button" label={copyLabel} disabled={!value} onClick={onCopy} />
+          {deleteLabel && onDelete
+            ? <FieldIconButton kind="delete" className="symmetric-delete-button" label={deleteLabel} disabled={!value} onClick={onDelete} />
+            : null}
+        </div>
+      </div>
+      <textarea
+        aria-label={label}
+        value={value}
+        onChange={onChange ? (event) => onChange(event.target.value) : undefined}
+        readOnly={readOnly}
+        rows={7}
+        spellCheck={false}
+      />
+    </div>
+  )
+}
+
 export function SymmetricCryptoTool({ algorithm }: { algorithm: SymmetricAlgorithm }) {
   const capability = SYMMETRIC_CAPABILITIES[algorithm]
   const [operation, setOperation] = useState<Operation>('encrypt')
@@ -31,6 +73,7 @@ export function SymmetricCryptoTool({ algorithm }: { algorithm: SymmetricAlgorit
   const [input, setInput] = useState('')
   const [output, setOutput] = useState('')
   const [status, setStatus] = useState<StatusState>(null)
+  const [copyStatus, setCopyStatus] = useState<StatusState>(null)
   const modeCapability = getModeCapability(algorithm, mode)!
 
   function changeMode(nextMode: CipherMode) {
@@ -39,6 +82,7 @@ export function SymmetricCryptoTool({ algorithm }: { algorithm: SymmetricAlgorit
     if (!next.paddings.includes(padding)) setPadding(next.paddings[0])
     setParameter('')
     setStatus({ kind: 'info', message: `已切换为 ${algorithm}-${nextMode}，请检查当前参数。` })
+    setCopyStatus(null)
   }
 
   function changeOperation(next: Operation) {
@@ -46,6 +90,18 @@ export function SymmetricCryptoTool({ algorithm }: { algorithm: SymmetricAlgorit
     setInput('')
     setOutput('')
     setStatus(null)
+    setCopyStatus(null)
+  }
+
+  async function copyText(value: string, label: string) {
+    if (!value) return
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable')
+      await navigator.clipboard.writeText(value)
+      setCopyStatus({ kind: 'success', message: `${label}已复制到剪贴板。` })
+    } catch {
+      setCopyStatus({ kind: 'error', message: `无法访问剪贴板，请手动复制${label}。` })
+    }
   }
 
   async function run() {
@@ -67,7 +123,14 @@ export function SymmetricCryptoTool({ algorithm }: { algorithm: SymmetricAlgorit
     setStatus({ kind: 'success', message: `${algorithm} ${operation === 'encrypt' ? '加密' : '解密'}完成，结果仅保留在当前页面。` })
   }
 
-  const parameterLabel = modeCapability.parameter === 'IV' ? 'IV / 偏移量' : modeCapability.parameter === 'counter' ? '计数器 / 偏移量' : 'Nonce / 偏移量'
+  const hasParameter = modeCapability.parameter !== null
+  const parameterLabel = modeCapability.parameter === 'counter'
+    ? '计数器 / 偏移量'
+    : modeCapability.parameter === 'nonce'
+      ? 'Nonce / 偏移量'
+      : 'IV / 偏移量'
+  const inputLabel = operation === 'encrypt' ? '明文（UTF-8）' : `密文（${cipherEncoding === 'hex' ? 'HEX' : 'Base64'}）`
+  const inputFeedbackLabel = operation === 'encrypt' ? '明文输入' : '密文输入'
   return (
     <div className='tool-page'>
       <ToolHeader eyebrow={`SYMMETRIC / ${algorithm}`} title={`${algorithm} 加解密`} description='明确设置密钥编码、模式、填充和模式参数；所有处理均在浏览器本地完成。' />
@@ -80,14 +143,45 @@ export function SymmetricCryptoTool({ algorithm }: { algorithm: SymmetricAlgorit
         </div>
         <div className='crypto-fields'>
           <div><Segmented label='密钥格式' value={keyEncoding} options={encodingOptions} onChange={setKeyEncoding} /><label className='field'><span className='field-label'>密钥</span><input value={key} onChange={(event) => setKey(event.target.value)} placeholder={`允许 ${capability.keyBytes.join(' / ')} 字节`} /></label></div>
-          {modeCapability.parameter ? <div><Segmented label={`${parameterLabel}格式`} value={parameterEncoding} options={encodingOptions} onChange={setParameterEncoding} /><label className='field'><span className='field-label'>{parameterLabel}</span><input value={parameter} onChange={(event) => setParameter(event.target.value)} placeholder={`${modeCapability.parameterBytes} 字节`} /></label></div> : <div className='notice notice-info'><strong>无需偏移量</strong><span>{mode} 模式不使用 IV。</span></div>}
+          <div className="crypto-parameter-field">
+            <Segmented label={`${parameterLabel}格式`} value={parameterEncoding} options={encodingOptions} onChange={setParameterEncoding} disabled={!hasParameter} />
+            <label className='field'>
+              <span className='field-label'>{parameterLabel}</span>
+              <input
+                aria-label={parameterLabel}
+                value={hasParameter ? parameter : ''}
+                onChange={(event) => setParameter(event.target.value)}
+                placeholder={hasParameter ? `${modeCapability.parameterBytes} 字节` : `${mode} 模式不使用偏移量`}
+                disabled={!hasParameter}
+              />
+            </label>
+          </div>
           <Segmented label='密文格式' value={cipherEncoding} options={encodingOptions} onChange={setCipherEncoding} />
         </div>
       </Panel>
       <div className='two-column crypto-io'>
-        <Panel title={operation === 'encrypt' ? '明文输入' : '密文输入'}><TextAreaField label={operation === 'encrypt' ? '明文（UTF-8）' : `密文（${cipherEncoding === 'hex' ? 'HEX' : 'Base64'}）`} value={input} onChange={setInput} /></Panel>
-        <Panel title={operation === 'encrypt' ? '密文结果' : '明文结果'} aside={<CopyButton value={output} />}><TextAreaField label='处理结果' value={output} readOnly /></Panel>
+        <Panel title={operation === 'encrypt' ? '明文输入' : '密文输入'}>
+          <SymmetricTextField
+            label={inputLabel}
+            value={input}
+            onChange={(value) => { setInput(value); setCopyStatus(null) }}
+            copyLabel={`复制${inputFeedbackLabel}`}
+            deleteLabel={`删除${inputFeedbackLabel}`}
+            onCopy={() => copyText(input, inputFeedbackLabel)}
+            onDelete={() => { setInput(''); setCopyStatus(null) }}
+          />
+        </Panel>
+        <Panel title={operation === 'encrypt' ? '密文结果' : '明文结果'}>
+          <SymmetricTextField
+            label='处理结果'
+            value={output}
+            readOnly
+            copyLabel='复制处理结果'
+            onCopy={() => copyText(output, '处理结果')}
+          />
+        </Panel>
       </div>
+      <div className="symmetric-copy-feedback"><StatusMessage status={copyStatus} /></div>
       <div className='action-row'><button className='button button-primary' type='button' onClick={run}>开始{operation === 'encrypt' ? '加密' : '解密'}</button></div>
       <StatusMessage status={status} />
     </div>

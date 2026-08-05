@@ -57,6 +57,16 @@ function renderToken(token: Token, fields: DateFields): string {
   return pad(fields[token], token === 'YYYY' ? 4 : token === 'SSS' ? 3 : 2)
 }
 
+export function formatIsoDate(date: Date, zone: TimeZoneMode): string {
+  if (zone === 'utc') return date.toISOString()
+  const fields = readFields(date, 'local')
+  const offsetMinutes = -date.getTimezoneOffset()
+  const sign = offsetMinutes >= 0 ? '+' : '-'
+  const absolute = Math.abs(offsetMinutes)
+  const suffix = `${sign}${pad(Math.floor(absolute / 60))}:${pad(absolute % 60)}`
+  return `${renderToken('YYYY', fields)}-${renderToken('MM', fields)}-${renderToken('DD', fields)}T${renderToken('HH', fields)}:${renderToken('mm', fields)}:${renderToken('ss', fields)}.${renderToken('SSS', fields)}${suffix}`
+}
+
 export function compileDateFormat(format: string): ToolResult<CompiledFormat> {
   if (!format) return failure('invalid-input', '日期格式不能为空。')
   const parts: CompiledFormat['parts'] = []
@@ -147,14 +157,7 @@ export function formatTimestamp(
   const offset = timezoneOffsetText(date, zone)
 
   if (mode === 'iso') {
-    if (zone === 'utc') return success({ text: date.toISOString(), offset })
-    const fields = readFields(date, 'local')
-    const offsetMinutes = -date.getTimezoneOffset()
-    const sign = offsetMinutes >= 0 ? '+' : '-'
-    const absolute = Math.abs(offsetMinutes)
-    const suffix = `${sign}${pad(Math.floor(absolute / 60))}:${pad(absolute % 60)}`
-    const text = `${renderToken('YYYY', fields)}-${renderToken('MM', fields)}-${renderToken('DD', fields)}T${renderToken('HH', fields)}:${renderToken('mm', fields)}:${renderToken('ss', fields)}.${renderToken('SSS', fields)}${suffix}`
-    return success({ text, offset })
+    return success({ text: formatIsoDate(date, zone), offset })
   }
 
   const compiled = compileDateFormat(format)

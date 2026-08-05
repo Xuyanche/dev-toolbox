@@ -22,6 +22,23 @@ npm run build
 
 生产静态文件输出到 `dist/`，可部署到任意静态托管服务。生产环境应启用 HTTPS；Web Crypto API 与剪贴板 API 在不安全上下文中可能不可用。所有依赖均打包进静态资源，资源加载完成后，各项转换不依赖网络。
 
+## 运行时工具开关
+
+部署时可覆盖与 `index.html` 同目录的 `toolbox.config.json`，无需重新构建即可控制工具入口。例如：
+
+```json
+{
+  "tools": {
+    "des": true,
+    "json": false
+  }
+}
+```
+
+可用工具 ID 为 `aes`、`base64`、`des`、`dice`、`json`、`jwt`、`md5`、`random-number`、`rsa`、`sha`、`sm4`、`timestamp`、`unicode`、`url`。默认仅 `des` 为 `false`，其他工具均为 `true`；未写出的项目沿用默认值，未知 ID 会被忽略。配置请求或 JSON/结构校验失败时会整体使用默认值。
+
+配置文件按页面 base URL 加载，支持部署在子路径。服务器应允许 `toolbox.config.json` 及时重新验证或使用较短缓存时间；应用请求时也会使用 `no-store`。这些开关只隐藏并停止挂载前端工具，不是访问控制或安全边界，不能替代服务器端授权。
+
 ## 行为约定
 
 - Base64 输入与输出使用 UTF-8 文本和标准 Base64，不包含 URL-safe 变体。

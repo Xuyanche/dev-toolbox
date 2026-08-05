@@ -1,56 +1,6 @@
 import { useState } from 'react'
 import { calculateMd5, calculateSha, SHA_ALGORITHMS, type DigestVariants, type ShaDigestBatch } from './hash'
-import { Panel, StatusMessage, TextAreaField, ToolHeader, type StatusState } from '../../shell/ui'
-
-function DigestResultRow({
-  label,
-  outputLabel,
-  copyLabel,
-  value,
-  onCopy,
-  shaCompatibility = false,
-}: {
-  label: string
-  outputLabel: string
-  copyLabel: string
-  value: string
-  onCopy: () => void
-  shaCompatibility?: boolean
-}) {
-  const compatibilityClass = (className: string) => shaCompatibility ? ` ${className}` : ''
-
-  return (
-    <div className={`digest-row${compatibilityClass('sha-digest-row')}`}>
-      <span className={`digest-variant-label${compatibilityClass('sha-variant-label')}`}>{label}</span>
-      <div className={`digest-field${compatibilityClass('sha-digest-field')}`}>
-        <output
-          className={`code-output digest-output${compatibilityClass('sha-digest-output')}`}
-          aria-label={outputLabel}
-        >
-          {value || '等待计算'}
-        </output>
-        <button
-          className={`digest-copy-button${compatibilityClass('sha-copy-button')}`}
-          type="button"
-          aria-label={copyLabel}
-          title={`${copyLabel}摘要`}
-          disabled={!value}
-          onClick={onCopy}
-        >
-          <svg
-            className={`digest-copy-icon${compatibilityClass('sha-copy-icon')}`}
-            viewBox="0 0 20 20"
-            aria-hidden="true"
-            focusable="false"
-          >
-            <rect x="6.5" y="6.5" width="9" height="10" rx="1.5" />
-            <path d="M13.5 6.5V5A1.5 1.5 0 0 0 12 3.5H5A1.5 1.5 0 0 0 3.5 5v8A1.5 1.5 0 0 0 5 14.5h1.5" />
-          </svg>
-        </button>
-      </div>
-    </div>
-  )
-}
+import { CompactOutputRow, Panel, StatusMessage, TextAreaField, ToolHeader, type StatusState } from '../../shell/ui'
 
 export function HashTool({ algorithm }: { algorithm: 'MD5' | 'SHA' }) {
   const [input, setInput] = useState('')
@@ -126,7 +76,7 @@ export function HashTool({ algorithm }: { algorithm: 'MD5' | 'SHA' }) {
             const variants = shaResult?.[entry.id]
             return (
               <Panel title={entry.label} key={entry.id}>
-                <DigestResultRow
+                <CompactOutputRow
                   label="小写摘要"
                   outputLabel={`${entry.label} 小写摘要`}
                   copyLabel={`复制 ${entry.label} 小写`}
@@ -134,7 +84,7 @@ export function HashTool({ algorithm }: { algorithm: 'MD5' | 'SHA' }) {
                   onCopy={() => copyDigest(variants?.lower ?? '', `${entry.label} 小写摘要`, setShaCopyStatus)}
                   shaCompatibility
                 />
-                <DigestResultRow
+                <CompactOutputRow
                   label="大写摘要"
                   outputLabel={`${entry.label} 大写摘要`}
                   copyLabel={`复制 ${entry.label} 大写`}
@@ -150,14 +100,14 @@ export function HashTool({ algorithm }: { algorithm: 'MD5' | 'SHA' }) {
       ) : (
         <div className="md5-result-group">
           <Panel title="MD5 摘要">
-            <DigestResultRow
+            <CompactOutputRow
               label="小写摘要"
               outputLabel="MD5 小写摘要"
               copyLabel="复制 MD5 小写"
               value={md5Result?.lower ?? ''}
               onCopy={() => copyDigest(md5Result?.lower ?? '', 'MD5 小写摘要', setMd5CopyStatus)}
             />
-            <DigestResultRow
+            <CompactOutputRow
               label="大写摘要"
               outputLabel="MD5 大写摘要"
               copyLabel="复制 MD5 大写"

@@ -1,91 +1,31 @@
-import { useState, type ReactNode } from 'react'
-import { DiceSimulatorTool } from '../features/dice/DiceSimulatorTool'
-import { EncodingTool } from '../features/encoding/EncodingTool'
-import { HashTool } from '../features/hash/HashTool'
+import { useEffect, useMemo, useState } from 'react'
 import { HomePage } from '../features/home/HomePage'
-import { JsonTool } from '../features/json/JsonTool'
-import { JwtTool } from '../features/jwt/JwtTool'
-import { RandomNumberGeneratorTool } from '../features/random-number/RandomNumberGeneratorTool'
-import { RsaTool } from '../features/rsa/RsaTool'
-import { SymmetricCryptoTool } from '../features/symmetric/SymmetricCryptoTool'
-import { TimestampTool } from '../features/timestamp/TimestampTool'
+import {
+  DEFAULT_TOOL_AVAILABILITY,
+  getEnabledToolGroups,
+  type ToolAvailability,
+  type ToolGroupId,
+  type ToolId,
+} from './toolRegistry'
 
-type ToolId = 'aes' | 'base64' | 'des' | 'dice' | 'json' | 'jwt' | 'md5' | 'random-number' | 'rsa' | 'sha' | 'sm4' | 'timestamp' | 'url'
-type ToolGroupId = 'random' | 'symmetric' | 'asymmetric' | 'digest' | 'time' | 'encoding'
-
-interface ToolDefinition {
-  id: ToolId
-  name: string
-  short: string
-  icon: string
-  element: ReactNode
-}
-
-interface ToolGroup {
-  id: ToolGroupId
-  name: string
-  tools: ToolDefinition[]
-}
-
-const toolGroups: ToolGroup[] = [
-  {
-    id: 'random',
-    name: '随机数工具',
-    tools: [
-      { id: 'dice', name: '色子模拟器', short: '多面骰子组合', icon: 'D', element: <DiceSimulatorTool /> },
-      { id: 'random-number', name: '随机数生成器', short: '范围与批量', icon: '#', element: <RandomNumberGeneratorTool /> },
-    ],
-  },
-  {
-    id: 'symmetric',
-    name: '对称加密',
-    tools: [
-      { id: 'aes', name: 'AES', short: '现代分组加密', icon: 'AE', element: <SymmetricCryptoTool algorithm='AES' /> },
-      { id: 'des', name: 'DES', short: '遗留系统兼容', icon: 'DE', element: <SymmetricCryptoTool algorithm='DES' /> },
-      { id: 'sm4', name: 'SM4', short: '国密分组加密', icon: 'S4', element: <SymmetricCryptoTool algorithm='SM4' /> },
-    ],
-  },
-  {
-    id: 'asymmetric',
-    name: '非对称加密',
-    tools: [
-      { id: 'rsa', name: 'RSA', short: '加密与签名', icon: 'RS', element: <RsaTool /> },
-    ],
-  },
-  {
-    id: 'digest',
-    name: '摘要算法',
-    tools: [
-      { id: 'md5', name: 'MD5', short: '消息摘要', icon: 'M5', element: <HashTool algorithm="MD5" /> },
-      { id: 'sha', name: 'SHA', short: '四种 SHA 摘要', icon: 'S4', element: <HashTool algorithm="SHA" /> },
-    ],
-  },
-  {
-    id: 'time',
-    name: '时间工具',
-    tools: [
-      { id: 'timestamp', name: '时间戳', short: 'ISO 与日期', icon: 'TS', element: <TimestampTool /> },
-    ],
-  },
-  {
-    id: 'encoding',
-    name: '编码工具',
-    tools: [
-      { id: 'url', name: 'URL 编解码', short: '百分号编码', icon: '%', element: <EncodingTool kind="url" /> },
-      { id: 'base64', name: 'Base64', short: '文本编解码', icon: 'B64', element: <EncodingTool kind="base64" /> },
-      { id: 'jwt', name: 'JWT', short: '令牌生成与解析', icon: 'JWT', element: <JwtTool /> },
-      { id: 'json', name: 'JSON', short: '格式化与转义', icon: '{}', element: <JsonTool /> },
-    ],
-  },
-]
-
-const tools = toolGroups.flatMap((group) => group.tools)
-
-export function App() {
+export function App({ availability = DEFAULT_TOOL_AVAILABILITY }: { availability?: ToolAvailability }) {
   const [active, setActive] = useState<ToolId | null>(null)
   const [expandedGroup, setExpandedGroup] = useState<ToolGroupId | null>(null)
+  const toolGroups = useMemo(() => getEnabledToolGroups(availability), [availability])
+  const tools = useMemo(() => toolGroups.flatMap((group) => group.tools), [toolGroups])
   const cryptoSupported = Boolean(globalThis.crypto?.subtle)
   const secureRandomSupported = Boolean(globalThis.crypto?.getRandomValues)
+
+  useEffect(() => {
+    if (active && !tools.some((tool) => tool.id === active)) {
+      setActive(null)
+      setExpandedGroup(null)
+      return
+    }
+    if (expandedGroup && !toolGroups.some((group) => group.id === expandedGroup)) {
+      setExpandedGroup(null)
+    }
+  }, [active, expandedGroup, toolGroups, tools])
 
   function selectTool(groupId: ToolGroupId, toolId: ToolId) {
     setExpandedGroup(groupId)
@@ -174,7 +114,7 @@ export function App() {
         {!cryptoSupported ? (
           <div className="notice notice-danger" role="alert"><strong>浏览器能力不足</strong><span>SHA、RSA 和 JWT 需要 Web Crypto API，请通过 HTTPS 使用现代浏览器。</span></div>
         ) : null}
-        {active === null ? <HomePage /> : null}
+        {active === null ? <HomePage groups={toolGroups} /> : null}
         {tools.map((tool) => (
           <section key={tool.id} hidden={active !== tool.id} aria-label={tool.name}>
             {tool.element}

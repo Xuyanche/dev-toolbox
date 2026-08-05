@@ -1,4 +1,4 @@
-import { compileDateFormat, formatTimestamp, parseCustomDate, parseIsoDate } from './timestamp'
+import { compileDateFormat, formatIsoDate, formatTimestamp, parseCustomDate, parseIsoDate } from './timestamp'
 
 describe('timestamp conversion', () => {
   it('validates custom tokens', () => {
@@ -14,6 +14,18 @@ describe('timestamp conversion', () => {
     expect(formatTimestamp('123', 'milliseconds', 'utc', 'custom', 'YYYY-MM-DD HH:mm:ss')).toMatchObject({
       ok: true, warning: expect.stringContaining('毫秒'),
     })
+  })
+
+  it('formats valid dates as shared UTC and offset ISO values with millisecond precision', () => {
+    const date = new Date('2026-08-04T15:30:45.123Z')
+    expect(formatIsoDate(date, 'utc')).toBe('2026-08-04T15:30:45.123Z')
+
+    const offsetSpy = vi.spyOn(Date.prototype, 'getTimezoneOffset')
+    offsetSpy.mockReturnValue(-480)
+    expect(formatIsoDate(date, 'local')).toMatch(/\.123\+08:00$/)
+    offsetSpy.mockReturnValue(300)
+    expect(formatIsoDate(date, 'local')).toMatch(/\.123-05:00$/)
+    offsetSpy.mockRestore()
   })
 
   it('strictly parses custom dates and rejects impossible dates', () => {

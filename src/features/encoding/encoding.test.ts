@@ -1,4 +1,4 @@
-import { decodeBase64, decodeUrl, encodeBase64, encodeUrl } from './encoding'
+import { decodeBase64, decodeUnicode, decodeUrl, encodeBase64, encodeUnicode, encodeUrl } from './encoding'
 
 describe('text encoding', () => {
   it('round trips UTF-8 text through Base64', () => {
@@ -17,6 +17,25 @@ describe('text encoding', () => {
     expect(decodeBase64('abc')).toMatchObject({ ok: false, code: 'invalid-input' })
     expect(decodeBase64('/w==')).toMatchObject({ ok: false, code: 'invalid-input' })
   })
+
+  it('encodes every UTF-16 code unit as canonical Unicode escapes', () => {
+    expect(encodeUnicode('A中👋')).toEqual({ ok: true, value: '\\u0041\\u4E2D\\uD83D\\uDC4B' })
+    expect(encodeUnicode('')).toEqual({ ok: true, value: '' })
+  })
+
+  it('decodes pure and mixed Unicode escapes with case-insensitive hexadecimal digits', () => {
+    expect(decodeUnicode('\\u0041\\u4E2D\\uD83D\\uDC4B')).toEqual({ ok: true, value: 'A中👋' })
+    expect(decodeUnicode('Hello, \\u4e16\\u754c')).toEqual({ ok: true, value: 'Hello, 世界' })
+    expect(decodeUnicode('plain text')).toEqual({ ok: true, value: 'plain text' })
+    expect(decodeUnicode('')).toEqual({ ok: true, value: '' })
+  })
+
+  it.each(['\\u12', '\\uZZZZ', '\\uD83D', '\\uDC4B', '\\uD83D\\u0041', '\\uDC4B\\uD83D'])(
+    'rejects malformed Unicode input: %s',
+    (value) => {
+      expect(decodeUnicode(value)).toMatchObject({ ok: false, code: 'invalid-input' })
+    },
+  )
 
   it('distinguishes component and complete URL modes', () => {
     expect(encodeUrl('a/b c', 'component')).toEqual({ ok: true, value: 'a%2Fb%20c' })

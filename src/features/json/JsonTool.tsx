@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Panel, Segmented, StatusMessage, TextAreaField, ToolHeader, type StatusState } from '../../shell/ui'
+import { CopyIcon, FieldIconButton, Panel, StatusMessage, ToolHeader, type StatusState } from '../../shell/ui'
 import {
   escapeJsonString,
   getJsonNodeCopyValue,
@@ -10,8 +10,8 @@ import {
   type ParsedJson,
 } from './json'
 
-type JsonMode = 'format' | 'escape'
-type EscapeDirection = 'escape' | 'unescape'
+type JsonOperation = 'format' | 'minify'
+type StringOperation = 'escape' | 'unescape'
 
 function getTypeLabel(value: JsonValue) {
   const labels = {
@@ -54,7 +54,6 @@ function getCollapsedSummary(value: JsonValue) {
 }
 
 function getPrimitiveText(value: JsonValue) {
-  if (typeof value === 'string') return JSON.stringify(value)
   return JSON.stringify(value)
 }
 
@@ -88,13 +87,16 @@ function JsonCodeNode({
   const openToken = type === 'array' ? '[' : '{'
   const closeToken = type === 'array' ? ']' : '}'
   const suffix = isLast ? '' : ','
+  const nodeCopyLabel = copyLabel(name, value)
 
   if (!expandable) {
     return (
       <li className="json-code-node">
         <div className="json-code-line" style={{ paddingLeft: `${depth * 22}px` }}>
           <span className="json-code-spacer" aria-hidden="true" />
-          <button className="json-code-copy" type="button" aria-label={copyLabel(name, value)} onClick={() => onCopy(path, value)}>复制</button>
+          <button className="json-code-copy" type="button" aria-label={nodeCopyLabel} title={nodeCopyLabel} onClick={() => onCopy(path, value)}>
+            <CopyIcon className="json-copy-icon" />
+          </button>
           {name !== 'root' ? <><span className="json-code-key">"{name}"</span><span className="json-code-punctuation">: </span></> : null}
           <span className={`json-code-value json-code-value-${type}`}>{getPrimitiveText(value)}</span>
           <span className="json-code-punctuation">{suffix}</span>
@@ -115,7 +117,9 @@ function JsonCodeNode({
         >
           {isExpanded ? '-' : '+'}
         </button>
-        <button className="json-code-copy" type="button" aria-label={copyLabel(name, value)} onClick={() => onCopy(path, value)}>复制</button>
+        <button className="json-code-copy" type="button" aria-label={nodeCopyLabel} title={nodeCopyLabel} onClick={() => onCopy(path, value)}>
+          <CopyIcon className="json-copy-icon" />
+        </button>
         {name !== 'root' ? <><span className="json-code-key">"{name}"</span><span className="json-code-punctuation">: </span></> : null}
         <span className="json-code-punctuation">{openToken}</span>
         {!isExpanded ? <span className="json-code-summary">{getCollapsedSummary(value)}</span> : null}
@@ -149,45 +153,60 @@ function JsonCodeNode({
 }
 
 export function JsonTool() {
-  const [mode, setMode] = useState<JsonMode>('format')
-
   const [jsonInput, setJsonInput] = useState('')
   const [parsed, setParsed] = useState<ParsedJson | null>(null)
-  const [formatStatus, setFormatStatus] = useState<StatusState>(null)
-  const [formatCopyStatus, setFormatCopyStatus] = useState<StatusState>(null)
+  const [status, setStatus] = useState<StatusState>(null)
   const [expanded, setExpanded] = useState<Set<string>>(new Set(['root']))
-  const [copiedPath, setCopiedPath] = useState<string | null>(null)
-
-  const [escapeInput, setEscapeInput] = useState('')
-  const [escapeOutput, setEscapeOutput] = useState('')
-  const [escapeDirection, setEscapeDirection] = useState<EscapeDirection>('escape')
-  const [escapeStatus, setEscapeStatus] = useState<StatusState>(null)
   const expandablePaths = useMemo(() => (parsed ? getExpandablePaths(parsed.value) : []), [parsed])
   const allTreeNodesCollapsed = expandablePaths.length > 0 && expandablePaths.every((path) => !expanded.has(path))
 
-  function runFormat() {
+  function resetTree() {
     setParsed(null)
-    setFormatStatus(null)
-    setFormatCopyStatus(null)
-    setCopiedPath(null)
+    setExpanded(new Set(['root']))
+  }
+
+  function updateInput(value: string) {
+    setJsonInput(value)
+    resetTree()
+    setStatus(null)
+  }
+
+  function runJsonOperation(operation: JsonOperation) {
+    resetTree()
+    setStatus(null)
     const result = parseJson(jsonInput)
     if (!result.ok) {
-      setFormatStatus({ kind: 'error', message: result.message })
+      setStatus({ kind: 'error', message: result.message })
       return
     }
     setParsed(result.value)
-    setJsonInput(result.value.formatted)
+    setJsonInput(operation === 'format' ? result.value.formatted : result.value.minified)
     setExpanded(new Set(['root']))
-    setFormatStatus({ kind: 'success', message: 'JSON 已在输入框内格式化。' })
+    setStatus({
+      kind: 'success',
+      message: operation === 'format' ? 'JSON 已在输入框内格式化。' : 'JSON 已在输入框内压缩。',
+    })
   }
 
-  function clearFormat() {
+  function runStringOperation(operation: StringOperation) {
+    resetTree()
+    setStatus(null)
+    const result = operation === 'escape' ? escapeJsonString(jsonInput) : unescapeJsonString(jsonInput)
+    if (!result.ok) {
+      setStatus({ kind: 'error', message: result.message })
+      return
+    }
+    setJsonInput(result.value)
+    setStatus({
+      kind: 'success',
+      message: operation === 'escape' ? 'JSON 字符串已转义。' : 'JSON 字符串已去除转义。',
+    })
+  }
+
+  function clear() {
     setJsonInput('')
-    setParsed(null)
-    setFormatStatus(null)
-    setFormatCopyStatus(null)
-    setCopiedPath(null)
-    setExpanded(new Set(['root']))
+    resetTree()
+    setStatus(null)
   }
 
   function toggleNode(path: string) {
@@ -201,7 +220,6 @@ export function JsonTool() {
 
   function toggleAllNodes() {
     if (!parsed) return
-    setCopiedPath(null)
     if (allTreeNodesCollapsed) {
       setExpanded(new Set(expandablePaths))
       return
@@ -209,50 +227,20 @@ export function JsonTool() {
     setExpanded(new Set())
   }
 
-  async function copyValue(value: string, onStatus: (status: StatusState) => void) {
+  async function copyValue(value: string, successMessage: string) {
     if (!value) return
     try {
       if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable')
       await navigator.clipboard.writeText(value)
-      onStatus({ kind: 'success', message: '已复制到剪贴板。' })
+      setStatus({ kind: 'success', message: successMessage })
     } catch {
-      onStatus({ kind: 'error', message: '无法访问剪贴板，请手动复制。' })
+      setStatus({ kind: 'error', message: '无法访问剪贴板，请手动复制。' })
     }
-  }
-
-  async function copyFormatted() {
-    if (!parsed) return
-    await copyValue(parsed.formatted, setFormatCopyStatus)
-  }
-
-  async function copyMinified() {
-    if (!parsed) return
-    await copyValue(parsed.minified, setFormatCopyStatus)
   }
 
   async function copyNode(path: string, value: JsonValue) {
-    await copyValue(getJsonNodeCopyValue(value), (status) => {
-      setCopiedPath(status?.kind === 'success' ? path : null)
-      setFormatCopyStatus(status)
-    })
-  }
-
-  function runEscape() {
-    setEscapeOutput('')
-    setEscapeStatus(null)
-    const result = escapeDirection === 'escape' ? escapeJsonString(escapeInput) : unescapeJsonString(escapeInput)
-    if (!result.ok) {
-      setEscapeStatus({ kind: 'error', message: result.message })
-      return
-    }
-    setEscapeOutput(result.value)
-    setEscapeStatus({ kind: 'success', message: escapeDirection === 'escape' ? 'JSON 字符串已转义。' : 'JSON 字符串已去除转义。' })
-  }
-
-  function clearEscape() {
-    setEscapeInput('')
-    setEscapeOutput('')
-    setEscapeStatus(null)
+    const pathLabel = path.replace(/^root\.?/, '') || 'root'
+    await copyValue(getJsonNodeCopyValue(value), `已复制节点 ${pathLabel}。`)
   }
 
   return (
@@ -260,108 +248,71 @@ export function JsonTool() {
       <ToolHeader
         eyebrow="JSON"
         title="JSON 格式化"
-        description="在本地直接格式化输入框中的 JSON，右侧以代码树查看并折叠任意层级，也可以进行 JSON 字符串转义和去除转义。"
+        description="在浏览器本地格式化或压缩 JSON、查看树形结构，并直接进行字符串转义和去除转义。"
       />
-      <div className="notice notice-info"><strong>本地处理</strong><span>JSON 输入、树状态和转义内容只保存在当前浏览器会话中。</span></div>
-      <div className="settings-row">
-        <Segmented
-          label="JSON 模式"
-          value={mode}
-          onChange={setMode}
-          options={[{ value: 'format', label: '格式化 / 树状' }, { value: 'escape', label: '转义 / 去除转义' }]}
-        />
-      </div>
-
-      {mode === 'format' ? (
-        <div data-testid="json-format-mode">
-          <div className="json-workspace" data-layout="tree-right">
-            <div className="json-text-workspace">
-              <Panel title="JSON 输入">
-                <TextAreaField
-                  label="JSON 输入"
-                  value={jsonInput}
-                  onChange={setJsonInput}
-                  rows={22}
-                  placeholder='{"compact":true,"items":[1,2,3]}'
-                  hint="点击格式化后会直接替换此输入框内容。"
-                />
-                <div className="action-row">
-                  <button className="button button-primary" type="button" onClick={runFormat}>格式化 JSON</button>
-                  <button className="button button-secondary" type="button" onClick={copyFormatted} disabled={!parsed}>复制格式化结果</button>
-                  <button className="button button-secondary" type="button" onClick={copyMinified} disabled={!parsed}>复制压缩结果</button>
-                  <button className="button button-ghost" type="button" onClick={clearFormat}>清空</button>
-                </div>
-                <StatusMessage status={formatStatus} />
-                <StatusMessage status={formatCopyStatus} />
-              </Panel>
-            </div>
-
-            <Panel
-              title="树形结构"
-              aside={parsed && expandablePaths.length > 0 ? (
-                <button className="json-tree-toggle-all" type="button" onClick={toggleAllNodes}>
-                  {allTreeNodesCollapsed ? '全部展开' : '全部折叠'}
-                </button>
-              ) : null}
-            >
-              {copiedPath ? <div className="json-tree-feedback" role="status" aria-live="polite">已复制节点 {copiedPath.replace(/^root\.?/, '') || 'root'}</div> : null}
-              {parsed ? (
-                <ol className="json-code-tree" aria-label="JSON 树形结构">
-                  <JsonCodeNode
-                    name="root"
-                    value={parsed.value}
-                    path="root"
-                    depth={0}
-                    isLast
-                    expanded={expanded}
-                    onToggle={toggleNode}
-                    onCopy={copyNode}
+      <div className="json-workspace" data-layout="tree-right" data-testid="json-workspace">
+        <div className="json-text-workspace">
+          <Panel title="JSON 输入">
+            <div className="field json-input-field">
+              <span className="field-heading">
+                <span className="field-label">JSON 输入</span>
+                <span className="json-input-actions">
+                  <FieldIconButton
+                    kind="copy"
+                    className="json-input-copy"
+                    iconClassName="json-copy-icon"
+                    label="复制 JSON 输入"
+                    disabled={!jsonInput}
+                    onClick={() => copyValue(jsonInput, 'JSON 输入已复制到剪贴板。')}
                   />
-                </ol>
-              ) : <p className="json-tree-empty">格式化 JSON 后，树形结构会显示在这里。</p>}
-            </Panel>
-          </div>
+                </span>
+              </span>
+              <span className="json-input-frame">
+                <textarea
+                  aria-label="JSON 输入"
+                  value={jsonInput}
+                  onChange={(event) => updateInput(event.target.value)}
+                  rows={12}
+                  placeholder='{"compact":true,"items":[1,2,3]}'
+                  spellCheck={false}
+                />
+              </span>
+            </div>
+            <div className="action-row json-action-row">
+              <button className="button button-primary" type="button" onClick={() => runJsonOperation('format')}>格式化 JSON</button>
+              <button className="button button-secondary" type="button" onClick={() => runJsonOperation('minify')}>压缩 JSON</button>
+              <button className="button button-secondary" type="button" onClick={() => runStringOperation('escape')}>转义</button>
+              <button className="button button-secondary" type="button" onClick={() => runStringOperation('unescape')}>去除转义</button>
+              <button className="button button-ghost" type="button" onClick={clear}>清空</button>
+            </div>
+            <div className="json-status"><StatusMessage status={status} /></div>
+          </Panel>
         </div>
-      ) : (
-        <div data-testid="json-escape-mode">
-          <div className="settings-row">
-            <Segmented
-              label="转义操作"
-              value={escapeDirection}
-              onChange={setEscapeDirection}
-              options={[{ value: 'escape', label: '转义' }, { value: 'unescape', label: '去除转义' }]}
-            />
-          </div>
-          <div className="two-column">
-            <Panel title="输入">
-              <TextAreaField
-                label="JSON 字符串输入"
-                value={escapeInput}
-                onChange={setEscapeInput}
-                rows={10}
-                placeholder={escapeDirection === 'escape' ? '包含 "引号" 和换行的文本' : 'line 1\\n\\"quoted\\"'}
-              />
-            </Panel>
-            <Panel title="输出">
-              <TextAreaField
-                label="JSON 字符串输出"
-                value={escapeOutput}
-                readOnly
-                rows={10}
-                placeholder="转换结果会显示在这里"
-              />
-            </Panel>
-          </div>
-          <div className="action-row">
-            <button className="button button-primary" type="button" onClick={runEscape}>
-              {escapeDirection === 'escape' ? '转义 JSON 字符串' : '去除 JSON 字符串转义'}
+
+        <Panel
+          title="树形结构"
+          aside={parsed && expandablePaths.length > 0 ? (
+            <button className="json-tree-toggle-all" type="button" onClick={toggleAllNodes}>
+              {allTreeNodesCollapsed ? '全部展开' : '全部折叠'}
             </button>
-            <button className="button button-secondary" type="button" onClick={() => copyValue(escapeOutput, setEscapeStatus)} disabled={!escapeOutput}>复制结果</button>
-            <button className="button button-ghost" type="button" onClick={clearEscape}>清空</button>
-          </div>
-          <StatusMessage status={escapeStatus} />
-        </div>
-      )}
+          ) : null}
+        >
+          {parsed ? (
+            <ol className="json-code-tree" aria-label="JSON 树形结构">
+              <JsonCodeNode
+                name="root"
+                value={parsed.value}
+                path="root"
+                depth={0}
+                isLast
+                expanded={expanded}
+                onToggle={toggleNode}
+                onCopy={copyNode}
+              />
+            </ol>
+          ) : <p className="json-tree-empty">格式化或压缩 JSON 后，树形结构会显示在这里。</p>}
+        </Panel>
+      </div>
     </div>
   )
 }

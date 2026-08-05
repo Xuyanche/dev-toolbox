@@ -1,6 +1,7 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { App } from './App'
+import { DEFAULT_TOOL_AVAILABILITY, TOOL_IDS, type ToolAvailability } from './toolRegistry'
 import { CopyButton } from './ui'
 
 describe('toolbox shell', () => {
@@ -21,7 +22,7 @@ describe('toolbox shell', () => {
 
     const mobileNav = screen.getByRole('navigation', { name: '移动工具导航' })
     expect(within(mobileNav).getAllByRole('button').map((button) => button.textContent))
-      .toEqual(['色子模拟器', '随机数生成器', 'AES', 'DES', 'SM4', 'RSA', 'MD5', 'SHA', '时间戳', 'URL 编解码', 'Base64', 'JWT', 'JSON'])
+      .toEqual(['色子模拟器', '随机数生成器', 'AES', 'SM4', 'RSA', 'MD5', 'SHA', '时间戳', 'URL 编解码', 'Unicode', 'Base64', 'JWT', 'JSON'])
     expect(mobileNav.querySelector('[aria-current="page"]')).toBeNull()
     expect(screen.getAllByRole('button', { name: '返回介绍首页' })).toHaveLength(2)
   })
@@ -160,6 +161,45 @@ describe('toolbox shell', () => {
     storageSpy.mockRestore()
   })
 
+  it('opens Unicode before Base64, processes locally and preserves independent tool state', async () => {
+    const user = userEvent.setup()
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    const storageSpy = vi.spyOn(Storage.prototype, 'setItem')
+    render(<App />)
+    const desktopNav = screen.getByRole('navigation', { name: '工具导航' })
+    const mobileNav = screen.getByRole('navigation', { name: '移动工具导航' })
+
+    await user.click(within(desktopNav).getByRole('button', { name: '编码工具' }))
+    const encodingTools = within(desktopNav).getAllByRole('button').filter((button) => button.classList.contains('nav-item'))
+    expect(encodingTools.map((button) => button.querySelector('strong')?.textContent))
+      .toEqual(['URL 编解码', 'Unicode', 'Base64', 'JWT', 'JSON'])
+
+    await user.click(within(desktopNav).getByRole('button', { name: /Unicode/ }))
+    const unicodeRegion = screen.getByRole('region', { name: 'Unicode' })
+    expect(unicodeRegion).toBeVisible()
+    expect(within(desktopNav).getByRole('button', { name: /Unicode/ })).toHaveAttribute('aria-current', 'page')
+    expect(within(mobileNav).getByRole('button', { name: 'Unicode' })).toHaveAttribute('aria-current', 'page')
+
+    const unicodeInput = within(unicodeRegion).getByLabelText('待处理文本')
+    await user.type(unicodeInput, 'A中')
+    await user.click(within(unicodeRegion).getByRole('button', { name: '开始编码' }))
+    expect(within(unicodeRegion).getByLabelText('转换结果')).toHaveValue('\\u0041\\u4E2D')
+    await user.click(within(unicodeRegion).getByRole('radio', { name: '解码' }))
+
+    await user.click(within(desktopNav).getByRole('button', { name: /Base64/ }))
+    const base64Region = screen.getByRole('region', { name: 'Base64' })
+    await user.type(within(base64Region).getByLabelText('待处理文本'), 'base64 state')
+    expect(within(base64Region).getByRole('radio', { name: '编码' })).toBeChecked()
+
+    await user.click(within(desktopNav).getByRole('button', { name: /Unicode/ }))
+    expect(unicodeInput).toHaveValue('A中')
+    expect(within(unicodeRegion).getByRole('radio', { name: '解码' })).toBeChecked()
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(storageSpy).not.toHaveBeenCalled()
+    fetchSpy.mockRestore()
+    storageSpy.mockRestore()
+  })
+
   it.each([320, 390])('keeps the homepage and mobile tools available at %ipx', async (width) => {
     const user = userEvent.setup()
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
@@ -167,6 +207,7 @@ describe('toolbox shell', () => {
     const mobileNav = screen.getByRole('navigation', { name: '移动工具导航' })
     expect(within(mobileNav).getAllByRole('group')).toHaveLength(6)
     expect(within(mobileNav).getAllByRole('button')).toHaveLength(13)
+    expect(within(mobileNav).getByRole('button', { name: 'Unicode' })).toBeVisible()
     expect(within(mobileNav).getByRole('button', { name: 'SHA' })).toBeVisible()
     expect(screen.getByRole('region', { name: '开发者工具箱' })).toBeVisible()
     await user.click(within(mobileNav).getByRole('button', { name: 'SHA' }))
@@ -199,12 +240,55 @@ describe('toolbox shell', () => {
 
     await user.click(within(desktopNav).getByRole('button', { name: '编码工具' }))
     const encodingButtons = within(desktopNav).getAllByRole('button').filter((button) => button.classList.contains('nav-item'))
-    expect(encodingButtons.map((button) => button.querySelector('strong')?.textContent)).toEqual(['URL 编解码', 'Base64', 'JWT', 'JSON'])
+    expect(encodingButtons.map((button) => button.querySelector('strong')?.textContent)).toEqual(['URL 编解码', 'Unicode', 'Base64', 'JWT', 'JSON'])
 
     await user.click(within(desktopNav).getByRole('button', { name: /JSON/ }))
-    expect(screen.getByRole('region', { name: 'JSON' })).toBeVisible()
+    const jsonRegion = screen.getByRole('region', { name: 'JSON' })
+    expect(jsonRegion).toBeVisible()
+    expect(within(jsonRegion).queryByText('本地处理')).not.toBeInTheDocument()
+    expect(within(jsonRegion).getByText(/在浏览器本地格式化或压缩 JSON/)).toBeVisible()
     expect(within(desktopNav).getByRole('button', { name: /JSON/ })).toHaveAttribute('aria-current', 'page')
     expect(within(mobileNav).getByRole('button', { name: 'JSON' })).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('keeps desktop, mobile and home listings consistent with explicit overrides', async () => {
+    const user = userEvent.setup()
+    const availability = { ...DEFAULT_TOOL_AVAILABILITY, des: true, json: false }
+    render(<App availability={availability} />)
+    const desktopNav = screen.getByRole('navigation', { name: '工具导航' })
+    const mobileNav = screen.getByRole('navigation', { name: '移动工具导航' })
+    const homepage = screen.getByRole('region', { name: '开发者工具箱' })
+
+    expect(within(mobileNav).getByRole('button', { name: 'DES' })).toBeVisible()
+    expect(within(mobileNav).queryByRole('button', { name: 'JSON' })).not.toBeInTheDocument()
+    expect(within(homepage).getByText('AES · DES · SM4')).toBeVisible()
+    expect(within(homepage).getByText('URL 编解码 · Unicode · Base64 · JWT')).toBeVisible()
+
+    await user.click(within(desktopNav).getByRole('button', { name: '对称加密' }))
+    await user.click(within(desktopNav).getByRole('button', { name: /DES/ }))
+    expect(screen.getByRole('region', { name: 'DES' })).toBeVisible()
+  })
+
+  it('removes empty categories from every listing', () => {
+    const availability = Object.fromEntries(TOOL_IDS.map((id) => [id, id === 'aes'])) as ToolAvailability
+    render(<App availability={availability} />)
+
+    expect(within(screen.getByRole('navigation', { name: '工具导航' })).getAllByRole('group')).toHaveLength(1)
+    expect(within(screen.getByRole('navigation', { name: '移动工具导航' })).getAllByRole('group')).toHaveLength(1)
+    expect(within(screen.getByRole('region', { name: '开发者工具箱' })).getAllByRole('article')).toHaveLength(1)
+    expect(screen.queryByRole('heading', { name: '非对称加密' })).not.toBeInTheDocument()
+  })
+
+  it('returns home when the active tool becomes unavailable', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<App availability={{ ...DEFAULT_TOOL_AVAILABILITY, des: true }} />)
+    const mobileNav = screen.getByRole('navigation', { name: '移动工具导航' })
+    await user.click(within(mobileNav).getByRole('button', { name: 'DES' }))
+    expect(screen.getByRole('region', { name: 'DES' })).toBeVisible()
+
+    rerender(<App availability={DEFAULT_TOOL_AVAILABILITY} />)
+    expect(await screen.findByRole('region', { name: '开发者工具箱' })).toBeVisible()
+    expect(within(mobileNav).queryByRole('button', { name: 'DES' })).not.toBeInTheDocument()
   })
 })
 

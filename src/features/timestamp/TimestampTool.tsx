@@ -1,6 +1,7 @@
-import { useState } from 'react'
-import { CopyButton, Panel, Segmented, StatusMessage, TextAreaField, ToolHeader, type StatusState } from '../../shell/ui'
+import { useEffect, useState } from 'react'
+import { CompactOutputRow, CopyButton, Panel, Segmented, StatusMessage, ToolHeader, type StatusState } from '../../shell/ui'
 import {
+  formatIsoDate,
   formatTimestamp,
   parseCustomDate,
   parseIsoDate,
@@ -9,8 +10,42 @@ import {
   type TimeZoneMode,
 } from './timestamp'
 
+type TimestampLineFieldProps = {
+  label: string
+  value: string
+  onChange?: (value: string) => void
+  placeholder?: string
+  readOnly?: boolean
+  hint?: string
+}
+
+function TimestampLineField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  readOnly = false,
+  hint,
+}: TimestampLineFieldProps) {
+  return (
+    <label className="field timestamp-line-field">
+      <span className="field-label">{label}</span>
+      <input
+        type="text"
+        aria-label={label}
+        value={value}
+        onChange={onChange ? (event) => onChange(event.target.value) : undefined}
+        placeholder={placeholder}
+        readOnly={readOnly}
+        spellCheck={false}
+      />
+      {hint ? <span className="field-hint">{hint}</span> : null}
+    </label>
+  )
+}
+
 export function TimestampTool() {
-  const [input, setInput] = useState(String(Date.now()))
+  const [input, setInput] = useState('')
   const [output, setOutput] = useState('')
   const [direction, setDirection] = useState<'timestamp-to-date' | 'date-to-timestamp'>('timestamp-to-date')
   const [unit, setUnit] = useState<TimeUnit>('milliseconds')
@@ -19,6 +54,13 @@ export function TimestampTool() {
   const [format, setFormat] = useState('YYYY-MM-DD HH:mm:ss.SSS')
   const [offset, setOffset] = useState('')
   const [status, setStatus] = useState<StatusState>(null)
+  const [currentDate, setCurrentDate] = useState(() => new Date())
+  const [currentTimeCopyStatus, setCurrentTimeCopyStatus] = useState<StatusState>(null)
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setCurrentDate(new Date()), 1000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   function run() {
     const result = direction === 'timestamp-to-date'
@@ -60,10 +102,23 @@ export function TimestampTool() {
     setStatus(null)
   }
 
+  async function copyCurrentTime(value: string, label: string) {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable')
+      await navigator.clipboard.writeText(value)
+      setCurrentTimeCopyStatus({ kind: 'success', message: `${label}已复制到剪贴板。` })
+    } catch {
+      setCurrentTimeCopyStatus({ kind: 'error', message: `无法复制${label}，请手动复制。` })
+    }
+  }
+
   const inputLabel = direction === 'timestamp-to-date' ? 'Unix 时间戳' : mode === 'iso' ? 'ISO 8601 日期时间' : '日期文本'
   const placeholder = direction === 'timestamp-to-date'
     ? unit === 'milliseconds' ? '例如 1785857445123' : '例如 1785857445'
     : mode === 'iso' ? '例如 2026-08-04T15:30:45.123+08:00' : `例如按 ${format} 输入`
+  const currentLocalIso = formatIsoDate(currentDate, 'local')
+  const currentGmtIso = formatIsoDate(currentDate, 'utc')
+  const currentTimestamp = String(currentDate.getTime())
 
   return (
     <div className="tool-page">
@@ -85,12 +140,12 @@ export function TimestampTool() {
         <div className="notice notice-info"><strong>ISO 8601</strong><span>支持日期、完整时间、三位毫秒、Z、±HH:mm；显式偏移优先于默认时区。</span></div>
       )}
 
-      <div className="two-column">
+      <div className="two-column timestamp-conversion-grid">
         <Panel title="输入">
-          <TextAreaField label={inputLabel} value={input} onChange={setInput} placeholder={placeholder} rows={5} />
+          <TimestampLineField label={inputLabel} value={input} onChange={setInput} placeholder={placeholder} />
         </Panel>
         <Panel title="输出">
-          <TextAreaField label={direction === 'timestamp-to-date' ? '日期时间' : 'Unix 时间戳'} value={output} readOnly placeholder="转换结果" rows={5} hint={offset ? `解析/显示偏移：${offset}` : undefined} />
+          <TimestampLineField label={direction === 'timestamp-to-date' ? '日期时间' : 'Unix 时间戳'} value={output} readOnly placeholder="转换结果" hint={offset ? `解析/显示偏移：${offset}` : undefined} />
         </Panel>
       </div>
       <div className="action-row">
@@ -100,6 +155,35 @@ export function TimestampTool() {
         <button className="button button-ghost" type="button" onClick={clear}>清空</button>
       </div>
       <StatusMessage status={status} />
+      <div className="current-time-group">
+        <Panel title="当前时间对照">
+          <CompactOutputRow
+            label="ISO 格式当前时间（本地）"
+            outputLabel="ISO 格式当前时间（本地）"
+            copyLabel="复制 ISO 格式当前时间（本地）"
+            copyTitle="复制 ISO 格式当前时间（本地）"
+            value={currentLocalIso}
+            onCopy={() => copyCurrentTime(currentLocalIso, 'ISO 格式当前时间（本地）')}
+          />
+          <CompactOutputRow
+            label="ISO 格式当前时间（GMT）"
+            outputLabel="ISO 格式当前时间（GMT）"
+            copyLabel="复制 ISO 格式当前时间（GMT）"
+            copyTitle="复制 ISO 格式当前时间（GMT）"
+            value={currentGmtIso}
+            onCopy={() => copyCurrentTime(currentGmtIso, 'ISO 格式当前时间（GMT）')}
+          />
+          <CompactOutputRow
+            label="时间戳"
+            outputLabel="当前 Unix 毫秒时间戳"
+            copyLabel="复制当前 Unix 毫秒时间戳"
+            copyTitle="复制当前 Unix 毫秒时间戳"
+            value={currentTimestamp}
+            onCopy={() => copyCurrentTime(currentTimestamp, '当前 Unix 毫秒时间戳')}
+          />
+        </Panel>
+        <div className="digest-copy-feedback current-time-copy-feedback"><StatusMessage status={currentTimeCopyStatus} /></div>
+      </div>
     </div>
   )
 }
