@@ -49,3 +49,21 @@ npm run build
 - 时间戳支持秒和毫秒、UTC 与浏览器本地时区、自定义格式和严格 ISO 8601 日期时间。ISO 模式支持日期、`T` 分隔时间、三位毫秒、`Z` 与 `±HH:mm` 偏移。
 
 本项目不是生产密钥保险库、文件加密器或证书管理器。处理真实私钥前，请根据你的安全模型使用经过审计的专用工具。
+
+## Windows 便携版
+
+维护者可将前端资源嵌入 Go 启动器，生成最终用户无需安装 Node.js、Go 或 Web 服务器即可运行的 Windows AMD64 便携包。构建环境需要 Node.js 20 或更高版本、npm、Go 1.22 或更高版本以及 PowerShell：
+
+```powershell
+.\build-release.ps1
+```
+
+脚本默认执行 `npm ci`、前端质量检查、生产构建、Go 测试与静态检查，最终生成 `release/dev-toolbox-windows-amd64.zip`。本地依赖已准备好时可传入 `-SkipInstall`；仅在临时诊断时可使用 `-SkipChecks`。
+
+用户解压后双击 `dev-toolbox.exe` 即可。启动器只监听 `127.0.0.1`，默认端口为 `15173`，并自动打开默认浏览器。可在命令行覆盖端口：
+
+```powershell
+.\dev-toolbox.exe --port 18080
+```
+
+EXE 同目录的 `toolbox.config.json` 会覆盖内嵌配置；文件缺失或不可读时使用内嵌默认配置。关闭控制台窗口或按 `Ctrl+C` 可停止服务。现有 `npm run build` 和 `dist/` 静态部署方式保持不变。

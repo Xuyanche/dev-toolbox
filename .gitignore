@@ -4,3 +4,7 @@ coverage/
 *.log
 *.tsbuildinfo
 .DS_Store
+launcher/web/*
+!launcher/web/.placeholder
+release/
+.cache/
