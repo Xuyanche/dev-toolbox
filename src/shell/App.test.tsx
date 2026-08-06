@@ -9,6 +9,7 @@ describe('toolbox shell', () => {
     render(<App />)
     expect(screen.getByRole('region', { name: '开发者工具箱' })).toBeVisible()
     expect(screen.queryByRole('region', { name: 'RSA' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Unpin navigation' })).toHaveAttribute('aria-pressed', 'true')
 
     const desktopNav = screen.getByRole('navigation', { name: '工具导航' })
     const groups = within(desktopNav).getAllByRole('group')
@@ -27,13 +28,55 @@ describe('toolbox shell', () => {
     expect(screen.getAllByRole('button', { name: '返回介绍首页' })).toHaveLength(2)
   })
 
+  it('unpinned desktop sidebar stays open until pointer exit, previews from the rail, and pins again', async () => {
+    const user = userEvent.setup()
+    const storageSpy = vi.spyOn(Storage.prototype, 'setItem')
+    const { container } = render(<App />)
+    const shell = container.querySelector('.app-shell')
+    const sidebar = container.querySelector('.sidebar')
+    const unpinButton = screen.getByRole('button', { name: 'Unpin navigation' })
+
+    expect(shell).not.toHaveClass('sidebar-collapsed')
+    expect(sidebar).toHaveAttribute('aria-expanded', 'true')
+    expect(unpinButton).toHaveAttribute('aria-pressed', 'true')
+
+    await user.click(unpinButton)
+    const pinButton = screen.getByRole('button', { name: 'Pin navigation' })
+    expect(shell).toHaveClass('sidebar-unpinned-open')
+    expect(shell).not.toHaveClass('sidebar-collapsed')
+    expect(sidebar).toHaveAttribute('aria-expanded', 'true')
+    expect(container.querySelector('.sidebar-content')).toHaveAttribute('aria-hidden', 'false')
+    expect(pinButton).toHaveAttribute('aria-pressed', 'false')
+    expect(storageSpy).not.toHaveBeenCalled()
+
+    await user.unhover(sidebar as Element)
+    expect(shell).toHaveClass('sidebar-collapsed')
+    expect(shell).not.toHaveClass('sidebar-peeking')
+    expect(sidebar).toHaveAttribute('aria-expanded', 'false')
+    expect(container.querySelector('.sidebar-content')).toHaveAttribute('aria-hidden', 'true')
+    expect(container.querySelector('.sidebar-content')).toHaveAttribute('inert')
+
+    await user.hover(sidebar as Element)
+    expect(shell).toHaveClass('sidebar-peeking')
+    expect(container.querySelector('.sidebar-content')).toHaveAttribute('aria-hidden', 'false')
+    expect(container.querySelector('.sidebar-content')).not.toHaveAttribute('inert')
+
+    await user.click(screen.getByRole('button', { name: 'Pin navigation' }))
+    expect(shell).not.toHaveClass('sidebar-collapsed')
+    expect(shell).not.toHaveClass('sidebar-peeking')
+    expect(screen.getByRole('button', { name: 'Unpin navigation' })).toHaveAttribute('aria-pressed', 'true')
+    storageSpy.mockRestore()
+  })
+
   it('uses a keyboard-accessible single-expanded disclosure navigation', async () => {
     const user = userEvent.setup()
     render(<App />)
+    await user.tab()
+    expect(document.activeElement).toHaveAccessibleName('返回介绍首页')
     const desktopNav = screen.getByRole('navigation', { name: '工具导航' })
 
     await user.tab()
-    expect(document.activeElement).toHaveAccessibleName('返回介绍首页')
+    expect(document.activeElement).toHaveAccessibleName('Unpin navigation')
     await user.tab()
     expect(document.activeElement).toHaveAccessibleName('随机数工具')
     await user.keyboard('{Enter}')
@@ -204,6 +247,8 @@ describe('toolbox shell', () => {
     const user = userEvent.setup()
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
     render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Unpin navigation' }))
+    expect(screen.getByRole('button', { name: 'Pin navigation' })).toBeInTheDocument()
     const mobileNav = screen.getByRole('navigation', { name: '移动工具导航' })
     expect(within(mobileNav).getAllByRole('group')).toHaveLength(6)
     expect(within(mobileNav).getAllByRole('button')).toHaveLength(13)
