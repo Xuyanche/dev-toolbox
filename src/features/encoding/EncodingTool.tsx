@@ -46,7 +46,7 @@ export function EncodingTool({ kind }: { kind: EncodingKind }) {
   }
 
   return (
-    <div className="tool-page">
+    <div className="tool-page encoding-tool">
       <ToolHeader
         eyebrow="ENCODE / DECODE"
         title={toolCopy[kind].title}
@@ -56,7 +56,7 @@ export function EncodingTool({ kind }: { kind: EncodingKind }) {
         <Segmented label="操作" value={direction} onChange={setDirection} options={[{ value: 'encode', label: '编码' }, { value: 'decode', label: '解码' }]} />
         {kind === 'url' ? <Segmented label="URL 模式" value={urlMode} onChange={setUrlMode} options={[{ value: 'component', label: 'URL 组件' }, { value: 'complete', label: '完整 URL' }]} /> : null}
       </div>
-      <div className="two-column">
+      <div className="two-column encoding-workspace">
         <Panel title="输入">
           <TextAreaField label="待处理文本" value={input} onChange={setInput} placeholder={toolCopy[kind].placeholder} />
         </Panel>
