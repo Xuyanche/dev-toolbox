@@ -313,9 +313,18 @@ describe('toolbox shell', () => {
 
     await user.click(within(mobileNav).getByRole('button', { name: 'SHA' }))
     expect(shell).not.toHaveClass('tool-focus-mode')
+    expect(shell).toHaveClass('sha-focus-mode')
+
+    await user.click(within(mobileNav).getByRole('button', { name: 'MD5' }))
+    expect(shell).not.toHaveClass('tool-focus-mode')
+    expect(shell).not.toHaveClass('sha-focus-mode')
+
+    await user.click(within(mobileNav).getByRole('button', { name: 'SHA' }))
+    expect(shell).toHaveClass('sha-focus-mode')
 
     await user.click(screen.getAllByRole('button', { name: '返回介绍首页' })[0])
     expect(shell).not.toHaveClass('tool-focus-mode')
+    expect(shell).not.toHaveClass('sha-focus-mode')
   })
 
   it('keeps document scrolling available when global capability warnings are present', async () => {
@@ -328,6 +337,9 @@ describe('toolbox shell', () => {
     await user.click(within(mobileNav).getByRole('button', { name: 'JSON' }))
     expect(container.querySelector('.app-shell')).not.toHaveClass('tool-focus-mode')
     expect(screen.getByRole('region', { name: 'JSON' })).toBeVisible()
+    await user.click(within(mobileNav).getByRole('button', { name: 'SHA' }))
+    expect(container.querySelector('.app-shell')).not.toHaveClass('sha-focus-mode')
+    expect(screen.getByRole('region', { name: 'SHA' })).toBeVisible()
   })
 
   it('keeps desktop, mobile and home listings consistent with explicit overrides', async () => {

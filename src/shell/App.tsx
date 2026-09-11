@@ -23,6 +23,7 @@ export function App({ availability = DEFAULT_TOOL_AVAILABILITY }: { availability
   const sidebarPinned = sidebarMode === 'pinned'
   const sidebarVisible = sidebarMode !== 'collapsed'
   const toolFocusMode = active !== null && FOCUS_TOOL_IDS.has(active) && cryptoSupported && secureRandomSupported
+  const shaFocusMode = active === 'sha' && cryptoSupported && secureRandomSupported
 
   useEffect(() => {
     if (active && !tools.some((tool) => tool.id === active)) {
@@ -68,6 +69,7 @@ export function App({ availability = DEFAULT_TOOL_AVAILABILITY }: { availability
       sidebarMode === 'collapsed' || sidebarMode === 'peeking' ? 'sidebar-collapsed' : '',
       sidebarMode === 'peeking' ? 'sidebar-peeking' : '',
       toolFocusMode ? 'tool-focus-mode' : '',
+      shaFocusMode ? 'sha-focus-mode' : '',
     ].filter(Boolean).join(' ')}>
       <aside
         className="sidebar"

@@ -112,6 +112,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
 .timestamp-line-field input { height: 40px; overflow-x: auto; white-space: nowrap; }
 .timestamp-line-field input[readonly] { color: #294f3e; background: #f0f6f2; }
 .result-stack { margin-top: 16px; display: grid; gap: 12px; }
+.sha-workspace, .sha-control-column, .sha-result-column, .sha-input-panel { min-width: 0; }
 .sha-result-grid { min-width: 0; margin-top: 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 .md5-result-group { min-width: 0; margin-top: 16px; }
 .md5-result-group > .panel { min-width: 0; padding: 13px 15px; border-radius: 12px; }
@@ -372,6 +373,38 @@ footer { max-width: var(--workspace-max-width); margin: 54px auto 0; padding-top
   .tool-focus-mode .symmetric-text-field { grid-template-rows: auto minmax(0, 1fr); }
   .tool-focus-mode .symmetric-text-field textarea { min-height: 0; resize: none; }
   .tool-focus-mode footer { width: 100%; margin-top: 14px; padding-top: 8px; flex: 0 0 auto; }
+}
+
+@media (min-width: 1280px) and (min-height: 768px) {
+  .app-shell.sha-focus-mode { height: 100dvh; min-height: 0; overflow: hidden; }
+  .sha-focus-mode .main-content { height: 100%; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .sha-focus-mode .main-content > section:not([hidden]) { width: 100%; min-height: 0; flex: 1 1 0; overflow: hidden; }
+  .sha-focus-mode .sha-tool { height: 100%; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .sha-focus-mode .sha-tool .tool-header { margin-bottom: 12px; flex: 0 0 auto; }
+  .sha-focus-mode .sha-workspace { min-height: 0; flex: 1 1 0; display: grid; grid-template-columns: minmax(300px, .75fr) minmax(0, 1.25fr); gap: 16px; }
+  .sha-focus-mode .sha-control-column { min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+  .sha-focus-mode .sha-control-column > .notice { margin: 0; flex: 0 0 auto; }
+  .sha-focus-mode .sha-input-panel { min-height: 0; flex: 1 1 0; }
+  .sha-focus-mode .sha-input-panel > .panel { height: 100%; min-height: 0; padding: 13px 15px; display: flex; flex-direction: column; }
+  .sha-focus-mode .sha-input-panel > .panel > .panel-heading { min-height: 22px; margin-bottom: 7px; }
+  .sha-focus-mode .sha-input-panel > .panel > .panel-heading h3 { margin: 0; font-size: 15px; }
+  .sha-focus-mode .sha-input-panel .field { min-height: 0; flex: 1 1 0; grid-template-rows: auto minmax(0, 1fr); }
+  .sha-focus-mode .sha-input-panel textarea { height: 100%; min-height: 0; resize: none; }
+  .sha-focus-mode .sha-control-column > .action-row { min-height: 42px; margin-top: 0; flex: 0 0 auto; }
+  .sha-focus-mode .sha-operation-feedback { min-height: 22px; flex: 0 0 auto; }
+  .sha-focus-mode .sha-operation-feedback > .status { margin: 0; }
+  .sha-focus-mode .sha-result-column { min-height: 0; display: flex; flex-direction: column; }
+  .sha-focus-mode .sha-result-grid { min-height: 0; margin-top: 0; flex: 1 1 0; grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 5px; }
+  .sha-focus-mode .sha-result-grid > .panel { min-height: 0; padding: 6px 10px; overflow: hidden; }
+  .sha-focus-mode .sha-result-grid > .panel > .panel-heading { min-height: 18px; margin-bottom: 2px; }
+  .sha-focus-mode .sha-result-grid > .panel > .panel-heading h3 { font-size: 14px; }
+  .sha-focus-mode .sha-result-grid .digest-row { grid-template-columns: 62px minmax(0, 1fr); gap: 7px; }
+  .sha-focus-mode .sha-result-grid .digest-row + .digest-row { margin-top: 4px; }
+  .sha-focus-mode .sha-digest-output { padding: 3px 10px 7px; display: block; overflow-x: auto; overflow-y: hidden; white-space: nowrap; overflow-wrap: normal; word-break: normal; scrollbar-width: thin; }
+  .sha-focus-mode .sha-digest-output::-webkit-scrollbar { height: 6px; }
+  .sha-focus-mode .sha-digest-output:focus-visible { outline: 2px solid var(--green); outline-offset: -3px; }
+  .sha-focus-mode .sha-copy-feedback { min-height: 22px; flex: 0 0 auto; }
+  .sha-focus-mode footer { width: 100%; margin-top: 14px; padding-top: 8px; flex: 0 0 auto; }
 }
 
 @media (max-width: 980px) {

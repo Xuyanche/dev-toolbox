@@ -12,10 +12,13 @@ describe('HashTool SHA mode', () => {
     const user = userEvent.setup()
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
-    render(<HashTool algorithm="SHA" />)
+    const { container } = render(<HashTool algorithm="SHA" />)
 
     expect(screen.getByText(/SHA-1 已不适合需要抗碰撞性/)).toBeVisible()
     expect(screen.getByText(/SHA-256、SHA-384 和 SHA-512 也不应直接用于密码存储/)).toBeVisible()
+    expect(container.querySelector('.sha-workspace > .sha-control-column .sha-input-panel')).not.toBeNull()
+    expect(container.querySelector('.sha-workspace > .sha-result-column .sha-result-grid')).not.toBeNull()
+    expect(container.querySelector('.sha-operation-feedback > .status')).not.toBeNull()
     const grid = document.querySelector('.sha-result-grid') as HTMLElement
     expect(grid).toHaveAttribute('data-layout', 'single-column')
     expect(Array.from(grid.querySelectorAll(':scope > .panel h3')).map((heading) => heading.textContent))
@@ -23,6 +26,7 @@ describe('HashTool SHA mode', () => {
     const copyButtons = screen.getAllByRole('button', { name: /复制 SHA-/ })
     expect(copyButtons).toHaveLength(8)
     expect(copyButtons.every((button) => button.hasAttribute('disabled'))).toBe(true)
+    expect(screen.getAllByText('等待计算').every((output) => !output.hasAttribute('tabindex'))).toBe(true)
     for (const button of copyButtons) {
       expect(button).toHaveTextContent('')
       expect(button.querySelector('svg.sha-copy-icon')).not.toBeNull()
@@ -36,6 +40,8 @@ describe('HashTool SHA mode', () => {
       expect(lower.textContent).toHaveLength(algorithm.hexLength)
       expect(upper.textContent).toHaveLength(algorithm.hexLength)
       expect(upper.textContent).toBe(lower.textContent?.toUpperCase())
+      expect(lower).toHaveAttribute('tabindex', '0')
+      expect(upper).toHaveAttribute('tabindex', '0')
       const lowerRow = lower.closest('.sha-digest-row') as HTMLElement
       expect(lowerRow.firstElementChild).toHaveClass('sha-variant-label')
       expect(lowerRow.firstElementChild).toHaveTextContent('小写摘要')
@@ -46,11 +52,15 @@ describe('HashTool SHA mode', () => {
     const sha512Upper = screen.getByLabelText('SHA-512 大写摘要').textContent ?? ''
     const sha512Copy = screen.getByRole('button', { name: '复制 SHA-512 大写' })
     const sha512Field = sha512Copy.parentElement
+    const copyFeedback = container.querySelector('.sha-copy-feedback')
+    const operationFeedback = container.querySelector('.sha-operation-feedback')
     await user.click(sha512Copy)
     expect(writeText).toHaveBeenCalledTimes(1)
     expect(writeText).toHaveBeenCalledWith(sha512Upper)
     expect(await screen.findByText('SHA-512 大写摘要已复制到剪贴板。')).toBeVisible()
     expect(sha512Copy.parentElement).toBe(sha512Field)
+    expect(container.querySelector('.sha-copy-feedback')).toBe(copyFeedback)
+    expect(container.querySelector('.sha-operation-feedback')).toBe(operationFeedback)
 
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: vi.fn().mockRejectedValue(new Error('denied')) } })
     await user.click(screen.getByRole('button', { name: '复制 SHA-256 小写' }))
@@ -75,6 +85,7 @@ describe('HashTool SHA mode', () => {
     await user.click(screen.getByRole('button', { name: '清空' }))
     expect(screen.getByLabelText('待摘要文本')).toHaveValue('')
     expect(screen.getAllByText('等待计算')).toHaveLength(8)
+    expect(screen.getAllByText('等待计算').every((output) => !output.hasAttribute('tabindex'))).toBe(true)
     expect(screen.queryByText('SHA 摘要计算完成。')).not.toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /复制 SHA-/ }).every((button) => button.hasAttribute('disabled'))).toBe(true)
   })
@@ -119,10 +130,14 @@ describe('HashTool SHA mode', () => {
 describe('HashTool MD5 mode', () => {
   it('renders lower and upper digests as compact rows with accessible icon-only copy controls', async () => {
     const user = userEvent.setup()
-    render(<HashTool algorithm="MD5" />)
+    const { container } = render(<HashTool algorithm="MD5" />)
 
     expect(screen.getByText('MD5 已不适合密码存储、数字签名或要求抗碰撞性的安全场景。')).toBeVisible()
     expect(document.querySelector('.sha-result-grid')).toBeNull()
+    expect(container.querySelector('.sha-workspace')).toBeNull()
+    expect(container.querySelector('.md5-tool > .notice')).not.toBeNull()
+    expect(container.querySelector('.md5-tool > .panel')).not.toBeNull()
+    expect(container.querySelector('.md5-tool > .action-row')).not.toBeNull()
     const group = document.querySelector('.md5-result-group') as HTMLElement
     expect(group.querySelectorAll(':scope > .panel')).toHaveLength(1)
     expect(screen.getByRole('heading', { level: 3, name: 'MD5 摘要' })).toBeVisible()

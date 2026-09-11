@@ -128,7 +128,11 @@ export function CompactOutputRow({ label, outputLabel, copyLabel, copyTitle = `$
     <div className={`digest-row${compatible('sha-digest-row')}`}>
       <span className={`digest-variant-label${compatible('sha-variant-label')}`}>{label}</span>
       <div className={`digest-field${compatible('sha-digest-field')}`}>
-        <output className={`code-output digest-output${compatible('sha-digest-output')}`} aria-label={outputLabel}>{value || emptyText}</output>
+        <output
+          className={`code-output digest-output${compatible('sha-digest-output')}`}
+          aria-label={outputLabel}
+          tabIndex={shaCompatibility && value ? 0 : undefined}
+        >{value || emptyText}</output>
         <button className={`digest-copy-button${compatible('sha-copy-button')}`} type={'button'} aria-label={copyLabel} title={copyTitle} disabled={!value} onClick={onCopy}>
           <svg className={`digest-copy-icon${compatible('sha-copy-icon')}`} viewBox={'0 0 20 20'} aria-hidden={'true'} focusable={'false'}>
             <rect x={'6.5'} y={'6.5'} width={'9'} height={'10'} rx={'1.5'} />
