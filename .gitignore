@@ -8,3 +8,4 @@ launcher/web/*
 !launcher/web/.placeholder
 release/
 .cache/
+__pycache__/

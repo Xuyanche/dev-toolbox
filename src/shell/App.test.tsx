@@ -5,6 +5,8 @@ import { DEFAULT_TOOL_AVAILABILITY, TOOL_IDS, type ToolAvailability } from './to
 import { CopyButton } from './ui'
 
 describe('toolbox shell', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
   it('defaults to the homepage with every desktop category collapsed', () => {
     render(<App />)
     expect(screen.getByRole('region', { name: '开发者工具箱' })).toBeVisible()
@@ -294,6 +296,38 @@ describe('toolbox shell', () => {
     expect(within(jsonRegion).getByText(/在浏览器本地格式化或压缩 JSON/)).toBeVisible()
     expect(within(desktopNav).getByRole('button', { name: /JSON/ })).toHaveAttribute('aria-current', 'page')
     expect(within(mobileNav).getByRole('button', { name: 'JSON' })).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('enables focus mode for every symmetric and encoding tool, including runtime-enabled DES', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('crypto', { subtle: {}, getRandomValues: vi.fn() })
+    const { container } = render(<App availability={{ ...DEFAULT_TOOL_AVAILABILITY, des: true }} />)
+    const shell = container.querySelector('.app-shell')
+    const mobileNav = screen.getByRole('navigation', { name: '移动工具导航' })
+
+    expect(shell).not.toHaveClass('tool-focus-mode')
+    for (const name of ['AES', 'DES', 'SM4', 'URL 编解码', 'Unicode', 'Base64', 'JWT', 'JSON']) {
+      await user.click(within(mobileNav).getByRole('button', { name }))
+      expect(shell).toHaveClass('tool-focus-mode')
+    }
+
+    await user.click(within(mobileNav).getByRole('button', { name: 'SHA' }))
+    expect(shell).not.toHaveClass('tool-focus-mode')
+
+    await user.click(screen.getAllByRole('button', { name: '返回介绍首页' })[0])
+    expect(shell).not.toHaveClass('tool-focus-mode')
+  })
+
+  it('keeps document scrolling available when global capability warnings are present', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('crypto', {})
+    const { container } = render(<App />)
+    const mobileNav = screen.getByRole('navigation', { name: '移动工具导航' })
+
+    expect(screen.getAllByRole('alert')).toHaveLength(2)
+    await user.click(within(mobileNav).getByRole('button', { name: 'JSON' }))
+    expect(container.querySelector('.app-shell')).not.toHaveClass('tool-focus-mode')
+    expect(screen.getByRole('region', { name: 'JSON' })).toBeVisible()
   })
 
   it('keeps desktop, mobile and home listings consistent with explicit overrides', async () => {

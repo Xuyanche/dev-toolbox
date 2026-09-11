@@ -70,10 +70,11 @@ describe('SymmetricCryptoTool', () => {
     const user = userEvent.setup()
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
-    render(<SymmetricCryptoTool algorithm='AES' />)
+    const { container } = render(<SymmetricCryptoTool algorithm='AES' />)
 
     const input = screen.getByLabelText('明文（UTF-8）')
     const output = screen.getByLabelText('处理结果')
+    expect(container.querySelector('.symmetric-tool > .crypto-io')).not.toBeNull()
     expect(input.closest('.symmetric-text-field')).not.toBeNull()
     expect(output.closest('.symmetric-text-field')).not.toBeNull()
     expect(input.closest('.panel')?.querySelector('.panel-heading button')).toBeNull()

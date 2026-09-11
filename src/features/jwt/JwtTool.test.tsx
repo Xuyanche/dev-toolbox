@@ -29,9 +29,11 @@ describe('JwtTool', () => {
 
   it('keeps stable equal-column workspaces with opposite parse and generation flow', async () => {
     const user = userEvent.setup()
-    render(<JwtTool />)
+    const { container } = render(<JwtTool />)
 
     const parseMode = screen.getByTestId('jwt-parse-mode')
+    expect(container.querySelector('.jwt-tool > .jwt-mode-row')).not.toBeNull()
+    expect(parseMode.parentElement).toHaveClass('jwt-tool')
     const parseWorkspace = parseMode.querySelector('.jwt-workspace-panel') as HTMLElement
     const parseGrid = parseMode.querySelector('.jwt-workspace-grid') as HTMLElement
     expect(parseWorkspace).not.toBeNull()

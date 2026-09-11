@@ -150,6 +150,8 @@ describe('JsonTool', () => {
 
     const workspace = screen.getByTestId('json-workspace')
     expect(workspace).toHaveAttribute('data-layout', 'tree-right')
+    expect(workspace.parentElement).toHaveClass('tool-page', 'json-tool')
+    expect(workspace.previousElementSibling).toHaveClass('tool-header')
     expect(workspace.querySelector('.json-text-workspace > .panel')).not.toBeNull()
     expect(workspace.querySelector(':scope > .panel')).not.toBeNull()
     expect(screen.getByLabelText('JSON 输入').closest('.json-input-frame')).not.toBeNull()
@@ -158,6 +160,8 @@ describe('JsonTool', () => {
 
     setValue(JSON.stringify({ long: 'x'.repeat(2000), nested: [{ value: true }] }))
     await user.click(screen.getByRole('button', { name: '格式化 JSON' }))
+    expect(screen.getByLabelText('JSON 输入').closest('.json-input-frame')).toBeInTheDocument()
+    expect(screen.getByRole('list', { name: 'JSON 树形结构' })).toHaveClass('json-code-tree')
     await user.click(screen.getByRole('button', { name: '压缩 JSON' }))
     await user.click(screen.getByRole('button', { name: '转义' }))
     await user.click(screen.getByRole('button', { name: '去除转义' }))

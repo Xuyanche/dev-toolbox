@@ -132,7 +132,7 @@ export function SymmetricCryptoTool({ algorithm }: { algorithm: SymmetricAlgorit
   const inputLabel = operation === 'encrypt' ? '明文（UTF-8）' : `密文（${cipherEncoding === 'hex' ? 'HEX' : 'Base64'}）`
   const inputFeedbackLabel = operation === 'encrypt' ? '明文输入' : '密文输入'
   return (
-    <div className='tool-page'>
+    <div className='tool-page symmetric-tool'>
       <ToolHeader eyebrow={`SYMMETRIC / ${algorithm}`} title={`${algorithm} 加解密`} description='明确设置密钥编码、模式、填充和模式参数；所有处理均在浏览器本地完成。' />
       {algorithm === 'DES' ? <div className='notice notice-warning' role='note'><strong>旧算法警告</strong><span>DES 已不适合保护新数据，仅应用于兼容遗留系统。</span></div> : null}
       <Panel title='参数设置'>

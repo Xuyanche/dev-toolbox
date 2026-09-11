@@ -12,6 +12,7 @@ describe('EncodingTool Unicode mode', () => {
     expect(screen.getByRole('heading', { name: 'Unicode 编解码' })).toBeVisible()
     expect(screen.getByText(/JavaScript\/JSON 兼容的 \\uXXXX/)).toBeVisible()
     expect(screen.getByRole('group', { name: '操作' })).toBeVisible()
+    expect(container.querySelector('.encoding-tool > .encoding-workspace')).not.toBeNull()
     expect(screen.queryByRole('group', { name: 'URL 模式' })).not.toBeInTheDocument()
     expect(container.querySelector('.two-column')).not.toBeNull()
     expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual(['输入', '输出'])

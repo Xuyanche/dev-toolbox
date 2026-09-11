@@ -10,6 +10,8 @@ import {
 
 type SidebarMode = 'pinned' | 'unpinned-open' | 'collapsed' | 'peeking'
 
+const FOCUS_TOOL_IDS = new Set<ToolId>(['aes', 'base64', 'des', 'json', 'jwt', 'sm4', 'unicode', 'url'])
+
 export function App({ availability = DEFAULT_TOOL_AVAILABILITY }: { availability?: ToolAvailability }) {
   const [active, setActive] = useState<ToolId | null>(null)
   const [expandedGroup, setExpandedGroup] = useState<ToolGroupId | null>(null)
@@ -20,6 +22,7 @@ export function App({ availability = DEFAULT_TOOL_AVAILABILITY }: { availability
   const secureRandomSupported = Boolean(globalThis.crypto?.getRandomValues)
   const sidebarPinned = sidebarMode === 'pinned'
   const sidebarVisible = sidebarMode !== 'collapsed'
+  const toolFocusMode = active !== null && FOCUS_TOOL_IDS.has(active) && cryptoSupported && secureRandomSupported
 
   useEffect(() => {
     if (active && !tools.some((tool) => tool.id === active)) {
@@ -64,6 +67,7 @@ export function App({ availability = DEFAULT_TOOL_AVAILABILITY }: { availability
       sidebarMode === 'unpinned-open' ? 'sidebar-unpinned-open' : '',
       sidebarMode === 'collapsed' || sidebarMode === 'peeking' ? 'sidebar-collapsed' : '',
       sidebarMode === 'peeking' ? 'sidebar-peeking' : '',
+      toolFocusMode ? 'tool-focus-mode' : '',
     ].filter(Boolean).join(' ')}>
       <aside
         className="sidebar"
