@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { calculateMd5, calculateSha, SHA_ALGORITHMS, type DigestVariants, type ShaDigestBatch } from './hash'
 import { CompactOutputRow, Panel, StatusMessage, TextAreaField, ToolHeader, type StatusState } from '../../shell/ui'
 
@@ -10,22 +10,33 @@ export function HashTool({ algorithm }: { algorithm: 'MD5' | 'SHA' }) {
   const [shaCopyStatus, setShaCopyStatus] = useState<StatusState>(null)
   const [status, setStatus] = useState<StatusState>(null)
   const [busy, setBusy] = useState(false)
+  const busyRef = useRef(false)
 
   async function run() {
+    if (busyRef.current) return
+    busyRef.current = true
     setBusy(true)
     setStatus(null)
     if (algorithm === 'MD5') setMd5CopyStatus(null)
     else setShaCopyStatus(null)
-    const next = algorithm === 'MD5' ? calculateMd5(input) : await calculateSha(input)
-    setBusy(false)
-    if (next.ok) {
-      if (algorithm === 'MD5') setMd5Result(next.value as DigestVariants)
-      else setShaResult(next.value as ShaDigestBatch)
-      setStatus({ kind: 'success', message: `${algorithm} 摘要计算完成。` })
-    } else {
-      if (algorithm === 'MD5') setMd5Result(null)
-      else setShaResult(null)
-      setStatus({ kind: 'error', message: next.message })
+    try {
+      const next = algorithm === 'MD5' ? calculateMd5(input) : await calculateSha(input)
+      busyRef.current = false
+      setBusy(false)
+      if (next.ok) {
+        if (algorithm === 'MD5') setMd5Result(next.value as DigestVariants)
+        else setShaResult(next.value as ShaDigestBatch)
+        setStatus({ kind: 'success', message: `${algorithm} 摘要计算完成。` })
+      } else {
+        if (algorithm === 'MD5') setMd5Result(null)
+        else setShaResult(null)
+        setStatus({ kind: 'error', message: next.message })
+      }
+    } finally {
+      if (busyRef.current) {
+        busyRef.current = false
+        setBusy(false)
+      }
     }
   }
 
@@ -60,7 +71,14 @@ export function HashTool({ algorithm }: { algorithm: 'MD5' | 'SHA' }) {
   )
   const inputPanel = (
     <Panel title="原始文本">
-      <TextAreaField label="待摘要文本" value={input} onChange={setInput} placeholder="空文本也是有效输入" />
+      <TextAreaField
+        label="待摘要文本"
+        value={input}
+        onChange={setInput}
+        placeholder="空文本也是有效输入"
+        onPrimaryAction={run}
+        primaryActionDisabled={busy}
+      />
     </Panel>
   )
   const actions = (

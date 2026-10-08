@@ -1,9 +1,5 @@
-# jwt-tool Specification
+## MODIFIED Requirements
 
-## Purpose
-
-为开发与调试场景提供完全在浏览器本地运行的 JWT 解析、签名校验和生成功能，使用户能清楚区分可读内容与可信内容，并安全处理令牌和 Secret。
-## Requirements
 ### Requirement: Strict JWT parsing and claims display
 系统 SHALL 仅将恰好包含三个以句点分隔片段、使用合法无填充 Base64URL 编码且 Header 与 Payload 均为 UTF-8 JSON 对象的输入解析为 JWT。解析模式 SHALL 在 JWT 输入于短暂稳定期内未继续变化后自动解析当前值；解析成功后，系统 SHALL 展示完整 Header，并 SHALL 在共享的切换区域中默认展示完整 Claims/Payload，同时允许切换为 iss、sub、aud、exp、nbf、iat 和 jti 等注册 Claim 的摘要；系统不得从完整 Payload 中丢弃未知或自定义 Claim。空 JWT 输入 SHALL 清除解析结果和错误而不显示格式错误；如果输入在异步处理期间再次变化，较早操作的结果 SHALL NOT 覆盖较新输入的状态。
 
@@ -142,17 +138,6 @@
 - **WHEN** 用户在窄视口打开生成模式
 - **THEN** Header、Claims/Payload、Secret 和生成 JWT 结果按该顺序自然堆叠，所有标题栏操作均保持可访问
 
-### Requirement: Cryptographically secure secret generation
-系统 SHALL 在生成 Secret 字段标题行提供“生成”操作，每次显式触发时使用密码学安全随机源生成至少 256 位随机数据，以无填充 Base64URL 文本表示，并替换当前生成 Secret。
-
-#### Scenario: Generate a new secret
-- **WHEN** 用户激活生成 Secret 标题行中的“生成”
-- **THEN** 系统生成至少 256 位随机数据的无填充 Base64URL 文本并用其替换当前 Secret
-
-#### Scenario: Do not replace a secret implicitly
-- **WHEN** 用户切换解析与生成模式、修改算法或执行其他非 Secret 生成操作
-- **THEN** 系统不会自动生成或替换 Secret
-
 ### Requirement: Local-only sensitive data handling and result actions
 系统 SHALL 仅在当前页面会话内保存 JWT、Claims 和 Secret，不得因自动解析、签名、校验、生成或 Secret 生成而发起网络请求、写入浏览器持久存储、记录敏感输入或在错误消息中回显 Secret。生成 JWT 的复制操作 SHALL 位于结果标题行右侧；解析 Secret 标题行 SHALL 提供复制与删除图标，删除 SHALL 只清空解析 Secret 和相关复制反馈，不得清空 JWT 输入、Header 或 Payload 解析结果，并 SHALL 自动更新信任状态。JWT 输入和 Claims/Payload 输入的标题行 SHALL 各在复制图标之后提供一个删除图标；该图标 SHALL 在对应输入为空时不可用，激活时 SHALL 取消该输入尚未执行的自动处理并清空对应输入、派生结果、错误及复制反馈，但 SHALL 保留该模式的 Secret、生成算法和另一模式的全部状态。解析和生成模式 SHALL NOT 提供独立的主操作或清空按钮；标题行输入删除图标不视为独立主按钮。
 
@@ -192,17 +177,6 @@
 - **WHEN** JWT 或 Claims/Payload 输入为空
 - **THEN** 对应标题行删除图标不可用，而复制图标继续按其现有值决定是否可用
 
-### Requirement: Compact local-processing notice placement
-系统 SHALL NOT 在 JWT 页面顶部显示独立的彩色“本地处理”提示。系统 SHALL 继续通过页面说明和工具箱全局隐私信息传达本地处理原则，并 SHALL 保留无签名、签名信任状态及其他安全警告。
-
-#### Scenario: Open the JWT tool without a standalone local notice
-- **WHEN** 用户打开 JWT 工具
-- **THEN** 页面顶部不显示独立的彩色“本地处理”提示，页面说明或全局隐私信息仍说明本地处理原则
-
-#### Scenario: Preserve JWT security warnings
-- **WHEN** 用户解析未校验、无效或无签名 JWT，或者准备生成无签名 JWT
-- **THEN** 系统继续显示对应信任状态和安全警告
-
 ### Requirement: Bidirectional compact JWT workspace
 系统 SHALL 在能够呈现双列的桌面视口中，以等宽、顶部和底部对齐且互为镜像的两列工作区展示解析和生成模式。解析模式 SHALL 由左列 JWT 输入填满可用高度，右列从上到下展示紧凑 Header、占用全部剩余高度的 Payload 或注册 Claim 视图、解析 Secret 及其签名信任状态；解析工作区 SHALL NOT 渲染独立的签名算法、签名校验框体或主操作行。生成模式 SHALL 在左列从上到下展示紧凑派生 Header、占用全部剩余高度的 Claims/Payload 和生成 Secret，右列由生成的 JWT 填满可用高度；签名算法 SHALL 位于白色主要工作区之外的模式操作行右侧。两个模式的白色主要工作区 SHALL 使用相同外部高度，且两列 SHALL 填满该高度；常见四行 Header SHALL 完整可见但不得随工作区增高而持续扩展，Secret SHALL 仅使用内容所需高度，长 JWT、Claims 和结果 SHALL 仅在对应正文区域内部滚动。除统一复制反馈区域外，系统 SHALL NOT 为已移除的按钮、操作状态或重复警告保留空白轨道。窄视口 SHALL 取消固定高度并按语义顺序自然堆叠。
 
@@ -235,44 +209,6 @@
 - **THEN** 解析模式按 JWT、Header、Payload、Secret 顺序堆叠，生成模式按 Header、Claims/Payload、Secret、生成 JWT 顺序堆叠
 - **AND** 所有标题栏操作保持可访问，页面不产生水平溢出
 
-### Requirement: Switchable parsed payload and registered claims
-解析成功后，系统 SHALL 在同一个可伸缩正文区域中提供“Payload”和“注册 Claim”两个互斥视图。Payload 视图 SHALL 展示完整 Payload 并保留所有未知或自定义 Claim；注册 Claim 视图 SHALL 仅摘要展示当前 Payload 中存在的常见注册 Claim，且不得渲染额外的独立 Claim 框体。切换视图 SHALL NOT 改变解析结果、签名信任状态或工作区外部尺寸。
-
-#### Scenario: Default to the complete payload
-- **WHEN** 用户成功解析 JWT
-- **THEN** 共享正文区域默认显示包含全部注册及自定义 Claim 的完整 Payload
-
-#### Scenario: Switch to registered claim summary
-- **WHEN** 用户在解析成功后选择“注册 Claim”
-- **THEN** 同一正文区域改为显示当前 Payload 中存在的注册 Claim 摘要，不再同时显示完整 Payload 或独立摘要框体
-
-#### Scenario: Show an empty registered claim view
-- **WHEN** 已解析 Payload 不包含任何支持摘要的注册 Claim 且用户选择“注册 Claim”
-- **THEN** 共享正文区域显示明确空状态，且该视图的复制操作不可用
-
-### Requirement: Header-aligned copy controls for JWT text regions
-系统 SHALL 在 JWT 输入、解析 Header、当前解析 Payload/注册 Claim 视图、解析 Secret、生成 Header 预览、Claims/Payload 输入、生成 Secret 和生成 JWT 等每个文本输入或展示区域的标题行右侧提供仅显示图标的复制操作。复制图标 SHALL 位于文本框边框外，不得覆盖文本内容，并 SHALL 与 MD5 摘要复制操作保持一致的视觉语义、可访问名称、悬停说明、键盘焦点和禁用状态。空文本或无可复制内容的当前视图 SHALL 禁用复制；复制反馈 SHALL 使用固定共享区域且不得回显 Secret。
-
-#### Scenario: Copy text from a titled region
-- **WHEN** 用户激活任一非空文本区域标题行右侧的复制图标
-- **THEN** 系统将该区域的完整当前文本写入剪贴板，并且图标不覆盖或改变正文区域尺寸
-
-#### Scenario: Copy the active parsed view
-- **WHEN** 用户在 Payload 与注册 Claim 之间切换后激活共享正文区域的复制图标
-- **THEN** 系统复制当前可见视图的完整内容，而不是未选中的视图
-
-#### Scenario: Disable copy for an empty region
-- **WHEN** 某文本区域或当前切换视图没有可复制内容
-- **THEN** 标题行中的复制图标保持可见但不可用
-
-#### Scenario: Copy a masked parsing secret safely
-- **WHEN** 解析 Secret 非空且用户激活其标题行中的复制图标
-- **THEN** 系统复制完整 Secret，不改变密码遮蔽状态，并显示不包含 Secret 内容的反馈
-
-#### Scenario: Report clipboard failure without layout shift
-- **WHEN** 浏览器拒绝任一剪贴板写入
-- **THEN** 系统在固定反馈区域显示不包含敏感内容的失败消息，标题、操作和正文区域位置保持不变
-
 ### Requirement: Mode-aware JWT primary input keyboard execution
 The system SHALL automatically process the active JWT mode after its relevant inputs remain unchanged for a short stabilization period. Users SHALL also be able to process the active mode immediately from its primary editable input by pressing `Ctrl+Enter`: the JWT input SHALL immediately run parsing and verification in parse mode, and the Claims/Payload JSON input SHALL immediately run token generation in generate mode. Accepted keyboard execution SHALL cancel the pending automatic timer, use the current input snapshot, preserve plain Enter for multiline editing, and produce the same validation, results, warnings, and status feedback as automatic processing.
 
@@ -299,4 +235,3 @@ The system SHALL automatically process the active JWT mode after its relevant in
 #### Scenario: Prevent a canceled timer from duplicating immediate execution
 - **WHEN** the user presses `Ctrl+Enter` before the current automatic processing timer expires
 - **THEN** the system performs the immediate operation once and the canceled timer does not start a duplicate operation
-

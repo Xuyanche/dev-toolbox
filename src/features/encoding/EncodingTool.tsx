@@ -58,7 +58,13 @@ export function EncodingTool({ kind }: { kind: EncodingKind }) {
       </div>
       <div className="two-column encoding-workspace">
         <Panel title="输入">
-          <TextAreaField label="待处理文本" value={input} onChange={setInput} placeholder={toolCopy[kind].placeholder} />
+          <TextAreaField
+            label="待处理文本"
+            value={input}
+            onChange={setInput}
+            placeholder={toolCopy[kind].placeholder}
+            onPrimaryAction={run}
+          />
         </Panel>
         <Panel title="输出">
           <TextAreaField label="转换结果" value={output} readOnly placeholder="结果会显示在这里" />

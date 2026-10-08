@@ -4,6 +4,38 @@ import { TimestampTool } from './TimestampTool'
 const INITIAL_TIME = new Date('2026-08-05T05:30:45.123Z')
 
 describe('TimestampTool current-time comparison', () => {
+  it.each([
+    { name: 'Enter', ctrlKey: false },
+    { name: 'Ctrl+Enter', ctrlKey: true },
+  ])('converts from the main input with $name', ({ ctrlKey }) => {
+    render(<TimestampTool />)
+    const input = screen.getByLabelText('Unix 时间戳')
+    fireEvent.click(screen.getByRole('radio', { name: 'UTC' }))
+    fireEvent.change(input, { target: { value: '1785857445123' } })
+    input.focus()
+
+    expect(fireEvent.keyDown(input, { key: 'Enter', ctrlKey })).toBe(false)
+
+    expect(screen.getByLabelText('日期时间')).toHaveValue('2026-08-04T15:30:45.123Z')
+    expect(input).toHaveFocus()
+  })
+
+  it('excludes the custom-format input and ignores Enter during IME composition', () => {
+    render(<TimestampTool />)
+    fireEvent.click(screen.getByRole('radio', { name: '自定义格式' }))
+    const input = screen.getByLabelText('Unix 时间戳')
+    const format = screen.getByLabelText('自定义格式')
+    const output = screen.getByLabelText('日期时间')
+    fireEvent.change(input, { target: { value: '1785857445123' } })
+
+    fireEvent.keyDown(format, { key: 'Enter' })
+    fireEvent.keyDown(format, { key: 'Enter', ctrlKey: true })
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true })
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true, isComposing: true })
+
+    expect(output).toHaveValue('')
+  })
+
   it('starts with empty single-line conversion fields', () => {
     render(<TimestampTool />)
 

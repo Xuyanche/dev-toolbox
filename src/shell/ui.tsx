@@ -1,4 +1,5 @@
 import { useId, useState, type ReactNode } from 'react'
+import { runPrimaryActionShortcut } from '../shared/keyboard'
 
 export type StatusState = { kind: 'success' | 'error' | 'info'; message: string } | null
 
@@ -30,6 +31,8 @@ export function TextAreaField({
   readOnly = false,
   rows = 7,
   hint,
+  onPrimaryAction,
+  primaryActionDisabled = false,
 }: {
   label: string
   labelAside?: ReactNode
@@ -39,6 +42,8 @@ export function TextAreaField({
   readOnly?: boolean
   rows?: number
   hint?: ReactNode
+  onPrimaryAction?: () => void
+  primaryActionDisabled?: boolean
 }) {
   return (
     <label className="field">
@@ -54,6 +59,7 @@ export function TextAreaField({
         readOnly={readOnly}
         rows={rows}
         spellCheck={false}
+        onKeyDown={(event) => runPrimaryActionShortcut(event, 'ctrl-enter', onPrimaryAction, primaryActionDisabled)}
       />
       {hint ? <span className="field-hint">{hint}</span> : null}
     </label>

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { CopyIcon, FieldIconButton, Panel, StatusMessage, ToolHeader, type StatusState } from '../../shell/ui'
+import { runPrimaryActionShortcut } from '../../shared/keyboard'
 import {
   escapeJsonString,
   getJsonNodeCopyValue,
@@ -275,6 +276,7 @@ export function JsonTool() {
                   rows={12}
                   placeholder='{"compact":true,"items":[1,2,3]}'
                   spellCheck={false}
+                  onKeyDown={(event) => runPrimaryActionShortcut(event, 'ctrl-enter', () => runJsonOperation('format'))}
                 />
               </span>
             </div>

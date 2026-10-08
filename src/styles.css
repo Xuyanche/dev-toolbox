@@ -269,10 +269,9 @@ footer { max-width: var(--workspace-max-width); margin: 54px auto 0; padding-top
 .jwt-workspace-column { min-width: 0; min-height: 0; display: grid; align-self: stretch; gap: 10px; overflow: hidden; }
 .jwt-workspace-column:first-child { padding-right: 16px; }
 .jwt-workspace-column:last-child { padding-left: 16px; border-left: 1px solid var(--line); }
-.jwt-parse-input-column { grid-template-rows: minmax(0, 1fr) auto auto; }
-.jwt-parse-result-column { grid-template-rows: minmax(150px, .55fr) minmax(0, 1.45fr) auto; }
-.jwt-generation-settings { grid-template-rows: minmax(150px, .55fr) minmax(0, 1.45fr) auto auto auto auto; }
-.jwt-generation-result { grid-template-rows: minmax(0, 1fr) auto; }
+.jwt-parse-input-column, .jwt-generate-token-column { grid-template-rows: minmax(0, 1fr); }
+.jwt-parse-result-column, .jwt-generate-settings-column { grid-template-rows: 140px minmax(0, 1fr) auto; }
+.jwt-generate-header-field, .jwt-generation-payload-field, .jwt-generate-token-field { min-width: 0; min-height: 0; }
 .jwt-fill-field, .jwt-result-field { min-height: 0; }
 .jwt-fill-field { grid-template-rows: auto minmax(0, 1fr) auto; }
 .jwt-result-field { grid-template-rows: auto minmax(0, 1fr); }
@@ -301,6 +300,7 @@ footer { max-width: var(--workspace-max-width); margin: 54px auto 0; padding-top
 .jwt-trust-line.jwt-trust-valid { color: var(--green-dark); }
 .jwt-trust-line.jwt-trust-warning { color: #75401e; }
 .jwt-trust-line.jwt-trust-danger { color: #7f3030; }
+.jwt-field-error { color: var(--red); font-weight: 700; }
 .jwt-json-output { height: 100%; min-height: 0; max-height: none; margin: 0; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: #294f3e; background: #f5f8f5; font-family: 'Cascadia Code', Consolas, monospace; font-size: var(--font-input); line-height: 1.55; }
 .jwt-payload-view { min-height: 0; height: 100%; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #f5f8f5; }
 .jwt-payload-view .jwt-json-output { border: 0; border-radius: 0; background: transparent; }
@@ -311,15 +311,10 @@ footer { max-width: var(--workspace-max-width); margin: 54px auto 0; padding-top
 .jwt-claims-summary dd { min-width: 0; margin: 0; overflow-wrap: anywhere; font-family: 'Cascadia Code', Consolas, monospace; line-height: 1.45; }
 .jwt-empty { margin: 0; color: var(--muted); line-height: 1.5; }
 .jwt-secret-field, .jwt-generate-secret { min-width: 0; }
-.jwt-warning-slot { min-height: 0; }
-.jwt-unsigned-warning { margin: 0; padding: 9px 11px; font-size: var(--font-min); }
-.jwt-workspace-actions { min-height: 38px; margin-top: 0; gap: 7px; }
-.jwt-workspace-actions .button { min-height: 38px; padding: 0 13px; }
-.jwt-operation-status { min-height: 22px; }
-.jwt-operation-status > .status { margin: 0; }
+.jwt-generate-secret > .field-hint { min-height: 20px; }
+.jwt-secret-warning-line { min-height: 20px; display: block; line-height: 1.5; }
+.jwt-secret-warning-active { color: var(--red); font-weight: 700; }
 .jwt-token-output { height: 100%; min-height: 0; padding: 12px; border: 1px solid var(--line); border-radius: 10px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: #f5f8f5; }
-.jwt-result-warning-slot { min-height: 22px; }
-.jwt-result-warning { color: var(--red); font-weight: 700; line-height: 1.5; }
 .jwt-copy-feedback { min-height: 22px; }
 .jwt-copy-feedback > .status { margin: 4px 0 0; text-align: right; }
 .json-tool .tool-header { margin-bottom: 18px; }
@@ -427,7 +422,9 @@ footer { max-width: var(--workspace-max-width); margin: 54px auto 0; padding-top
   .jwt-algorithm-control { margin-left: auto; }
   .jwt-payload-view { height: auto; min-height: 120px; }
   .jwt-claims-summary-region { min-height: 120px; }
-  .jwt-generation-result .jwt-token-output { min-height: 220px; max-height: 520px; }
+  .jwt-parse-input-column, .jwt-parse-result-column, .jwt-generate-settings-column, .jwt-generate-token-column { grid-template-rows: auto; }
+  .jwt-generate-header-field { height: auto; }
+  .jwt-generate-token-field .jwt-token-output { min-height: 220px; max-height: 520px; }
   .json-workspace { height: auto; grid-template-columns: 1fr; }
   .json-text-workspace > .panel, .json-workspace > .panel { height: auto; }
   .json-input-frame textarea { height: auto; min-height: 320px; resize: vertical; }
@@ -435,7 +432,7 @@ footer { max-width: var(--workspace-max-width); margin: 54px auto 0; padding-top
 }
 
 @media (max-width: 760px) {
-  .app-shell { display: block; }
+  .app-shell { --workspace-max-width: 100%; display: block; }
   .sidebar { display: none; }
   .main-content { padding: 0 15px 24px; }
   .mobile-header { height: 62px; display: flex; align-items: center; justify-content: space-between; }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { CompactOutputRow, CopyButton, Panel, Segmented, StatusMessage, ToolHeader, type StatusState } from '../../shell/ui'
+import { runPrimaryActionShortcut } from '../../shared/keyboard'
 import {
   formatIsoDate,
   formatTimestamp,
@@ -17,6 +18,7 @@ type TimestampLineFieldProps = {
   placeholder?: string
   readOnly?: boolean
   hint?: string
+  onPrimaryAction?: () => void
 }
 
 function TimestampLineField({
@@ -26,6 +28,7 @@ function TimestampLineField({
   placeholder,
   readOnly = false,
   hint,
+  onPrimaryAction,
 }: TimestampLineFieldProps) {
   return (
     <label className="field timestamp-line-field">
@@ -38,6 +41,7 @@ function TimestampLineField({
         placeholder={placeholder}
         readOnly={readOnly}
         spellCheck={false}
+        onKeyDown={(event) => runPrimaryActionShortcut(event, 'enter', onPrimaryAction)}
       />
       {hint ? <span className="field-hint">{hint}</span> : null}
     </label>
@@ -142,7 +146,7 @@ export function TimestampTool() {
 
       <div className="two-column timestamp-conversion-grid">
         <Panel title="输入">
-          <TimestampLineField label={inputLabel} value={input} onChange={setInput} placeholder={placeholder} />
+          <TimestampLineField label={inputLabel} value={input} onChange={setInput} placeholder={placeholder} onPrimaryAction={run} />
         </Panel>
         <Panel title="输出">
           <TimestampLineField label={direction === 'timestamp-to-date' ? '日期时间' : 'Unix 时间戳'} value={output} readOnly placeholder="转换结果" hint={offset ? `解析/显示偏移：${offset}` : undefined} />

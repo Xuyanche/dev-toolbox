@@ -144,3 +144,22 @@
 - **WHEN** 用户在窄视口查看时间戳工具底部
 - **THEN** 三个时间值保持固定的纵向顺序，长 ISO 值可在自身内容区内安全换行或收缩
 - **AND** 每行的复制图标仍位于对应值框的右端且可操作，页面不产生水平溢出
+
+### Requirement: Timestamp primary input keyboard execution
+The system SHALL execute the current timestamp conversion when keyboard focus is in the main conversion input and the user presses Enter, whether or not Control is also pressed. Keyboard execution SHALL use the current conversion direction, unit, time zone, date mode, and custom format and SHALL produce the same result, validation, warning, and status feedback as activating the primary conversion button.
+
+#### Scenario: Convert with Enter
+- **WHEN** keyboard focus is in the main timestamp conversion input and the user presses Enter without Control while text composition is inactive
+- **THEN** the system executes the current conversion once
+
+#### Scenario: Convert with Control and Enter
+- **WHEN** keyboard focus is in the main timestamp conversion input and the user presses `Ctrl+Enter` while text composition is inactive
+- **THEN** the system executes the current conversion once
+
+#### Scenario: Exclude the custom format input
+- **WHEN** keyboard focus is in the custom date format input and the user presses Enter or `Ctrl+Enter`
+- **THEN** the system does not execute timestamp conversion
+
+#### Scenario: Ignore timestamp execution during composition
+- **WHEN** an input method editor is composing text in the main timestamp conversion input and the user presses Enter or `Ctrl+Enter`
+- **THEN** the system does not execute the conversion or interrupt the composition

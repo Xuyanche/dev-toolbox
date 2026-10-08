@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { base64ToBytes, bytesToBase64, bytesToHex, bytesToUtf8, hexToBytes, utf8Bytes } from '../../shared/bytes'
 import { FieldIconButton, Panel, Segmented, StatusMessage, ToolHeader, type StatusState } from '../../shell/ui'
+import { runPrimaryActionShortcut } from '../../shared/keyboard'
 import { getModeCapability, SYMMETRIC_CAPABILITIES, type CipherMode, type PaddingMode, type SymmetricAlgorithm } from './capabilities'
 import { executeSymmetric } from './symmetric'
 
@@ -26,6 +27,8 @@ function SymmetricTextField({
   deleteLabel,
   onCopy,
   onDelete,
+  onPrimaryAction,
+  primaryActionDisabled = false,
 }: {
   label: string
   value: string
@@ -35,6 +38,8 @@ function SymmetricTextField({
   deleteLabel?: string
   onCopy: () => void
   onDelete?: () => void
+  onPrimaryAction?: () => void
+  primaryActionDisabled?: boolean
 }) {
   return (
     <div className="field symmetric-text-field">
@@ -54,6 +59,7 @@ function SymmetricTextField({
         readOnly={readOnly}
         rows={7}
         spellCheck={false}
+        onKeyDown={(event) => runPrimaryActionShortcut(event, 'ctrl-enter', onPrimaryAction, primaryActionDisabled)}
       />
     </div>
   )
@@ -74,6 +80,8 @@ export function SymmetricCryptoTool({ algorithm }: { algorithm: SymmetricAlgorit
   const [output, setOutput] = useState('')
   const [status, setStatus] = useState<StatusState>(null)
   const [copyStatus, setCopyStatus] = useState<StatusState>(null)
+  const [busy, setBusy] = useState(false)
+  const busyRef = useRef(false)
   const modeCapability = getModeCapability(algorithm, mode)!
 
   function changeMode(nextMode: CipherMode) {
@@ -105,22 +113,30 @@ export function SymmetricCryptoTool({ algorithm }: { algorithm: SymmetricAlgorit
   }
 
   async function run() {
-    const decodedKey = decodeBinary(key, keyEncoding)
-    if (!decodedKey.ok) return setStatus({ kind: 'error', message: `密钥：${decodedKey.message}` })
-    const decodedInput = operation === 'encrypt' ? { ok: true as const, value: utf8Bytes(input) } : decodeBinary(input, cipherEncoding)
-    if (!decodedInput.ok) return setStatus({ kind: 'error', message: `密文：${decodedInput.message}` })
-    const decodedParameter = modeCapability.parameter ? decodeBinary(parameter, parameterEncoding) : { ok: true as const, value: undefined }
-    if (!decodedParameter.ok) return setStatus({ kind: 'error', message: `${modeCapability.parameter}：${decodedParameter.message}` })
-    const result = await executeSymmetric({ operation, algorithm, mode, padding, input: decodedInput.value, key: decodedKey.value, parameter: decodedParameter.value })
-    if (!result.ok) return setStatus({ kind: 'error', message: result.message })
-    if (operation === 'encrypt') {
-      setOutput(encodeBinary(result.value, cipherEncoding))
-    } else {
-      const text = bytesToUtf8(result.value)
-      if (!text.ok) return setStatus({ kind: 'error', message: '解密结果不是有效 UTF-8 文本，请检查全部参数。' })
-      setOutput(text.value)
+    if (busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
+    try {
+      const decodedKey = decodeBinary(key, keyEncoding)
+      if (!decodedKey.ok) return setStatus({ kind: 'error', message: `密钥：${decodedKey.message}` })
+      const decodedInput = operation === 'encrypt' ? { ok: true as const, value: utf8Bytes(input) } : decodeBinary(input, cipherEncoding)
+      if (!decodedInput.ok) return setStatus({ kind: 'error', message: `密文：${decodedInput.message}` })
+      const decodedParameter = modeCapability.parameter ? decodeBinary(parameter, parameterEncoding) : { ok: true as const, value: undefined }
+      if (!decodedParameter.ok) return setStatus({ kind: 'error', message: `${modeCapability.parameter}：${decodedParameter.message}` })
+      const result = await executeSymmetric({ operation, algorithm, mode, padding, input: decodedInput.value, key: decodedKey.value, parameter: decodedParameter.value })
+      if (!result.ok) return setStatus({ kind: 'error', message: result.message })
+      if (operation === 'encrypt') {
+        setOutput(encodeBinary(result.value, cipherEncoding))
+      } else {
+        const text = bytesToUtf8(result.value)
+        if (!text.ok) return setStatus({ kind: 'error', message: '解密结果不是有效 UTF-8 文本，请检查全部参数。' })
+        setOutput(text.value)
+      }
+      setStatus({ kind: 'success', message: `${algorithm} ${operation === 'encrypt' ? '加密' : '解密'}完成，结果仅保留在当前页面。` })
+    } finally {
+      busyRef.current = false
+      setBusy(false)
     }
-    setStatus({ kind: 'success', message: `${algorithm} ${operation === 'encrypt' ? '加密' : '解密'}完成，结果仅保留在当前页面。` })
   }
 
   const hasParameter = modeCapability.parameter !== null
@@ -169,6 +185,8 @@ export function SymmetricCryptoTool({ algorithm }: { algorithm: SymmetricAlgorit
             deleteLabel={`删除${inputFeedbackLabel}`}
             onCopy={() => copyText(input, inputFeedbackLabel)}
             onDelete={() => { setInput(''); setCopyStatus(null) }}
+            onPrimaryAction={algorithm === 'DES' ? undefined : run}
+            primaryActionDisabled={busy}
           />
         </Panel>
         <Panel title={operation === 'encrypt' ? '密文结果' : '明文结果'}>
@@ -182,7 +200,7 @@ export function SymmetricCryptoTool({ algorithm }: { algorithm: SymmetricAlgorit
         </Panel>
       </div>
       <div className="symmetric-copy-feedback"><StatusMessage status={copyStatus} /></div>
-      <div className='action-row'><button className='button button-primary' type='button' onClick={run}>开始{operation === 'encrypt' ? '加密' : '解密'}</button></div>
+      <div className='action-row'><button className='button button-primary' type='button' onClick={run} disabled={busy}>开始{operation === 'encrypt' ? '加密' : '解密'}</button></div>
       <StatusMessage status={status} />
     </div>
   )

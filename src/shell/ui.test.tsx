@@ -18,6 +18,46 @@ describe('TextAreaField', () => {
     expect(screen.getByLabelText('测试字段')).toBeInTheDocument()
     expect(screen.queryByText('底部提示')).not.toBeInTheDocument()
   })
+
+  it('executes an opted-in primary action only for an accepted Ctrl+Enter shortcut', () => {
+    const onPrimaryAction = vi.fn()
+    render(<TextAreaField label="Shortcut input" value="line one" onChange={() => undefined} onPrimaryAction={onPrimaryAction} />)
+    const textarea = screen.getByLabelText('Shortcut input')
+
+    expect(fireEvent.keyDown(textarea, { key: 'Enter' })).toBe(true)
+    expect(onPrimaryAction).not.toHaveBeenCalled()
+
+    expect(fireEvent.keyDown(textarea, { key: 'Enter', ctrlKey: true })).toBe(false)
+    expect(onPrimaryAction).toHaveBeenCalledOnce()
+  })
+
+  it('ignores composition, repeated events, disabled actions and fields without an action', () => {
+    const onPrimaryAction = vi.fn()
+    const { rerender } = render(
+      <TextAreaField label="Shortcut input" value="" onChange={() => undefined} onPrimaryAction={onPrimaryAction} />,
+    )
+    const textarea = screen.getByLabelText('Shortcut input')
+
+    fireEvent.keyDown(textarea, { key: 'Enter', ctrlKey: true, isComposing: true })
+    fireEvent.keyDown(textarea, { key: 'Enter', ctrlKey: true, repeat: true })
+    expect(onPrimaryAction).not.toHaveBeenCalled()
+
+    rerender(
+      <TextAreaField
+        label="Shortcut input"
+        value=""
+        onChange={() => undefined}
+        onPrimaryAction={onPrimaryAction}
+        primaryActionDisabled
+      />,
+    )
+    fireEvent.keyDown(screen.getByLabelText('Shortcut input'), { key: 'Enter', ctrlKey: true })
+    expect(onPrimaryAction).not.toHaveBeenCalled()
+
+    rerender(<TextAreaField label="Shortcut input" value="" onChange={() => undefined} />)
+    expect(fireEvent.keyDown(screen.getByLabelText('Shortcut input'), { key: 'Enter', ctrlKey: true })).toBe(true)
+    expect(onPrimaryAction).not.toHaveBeenCalled()
+  })
 })
 
 describe('FieldIconButton', () => {

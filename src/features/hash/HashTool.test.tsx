@@ -8,6 +8,28 @@ function setInput(value: string) {
 }
 
 describe('HashTool SHA mode', () => {
+  it('executes Ctrl+Enter once and blocks overlapping digest calculations', async () => {
+    let resolveDigest!: (value: ArrayBuffer) => void
+    const digestPromise = new Promise<ArrayBuffer>((resolve) => { resolveDigest = resolve })
+    const digestSpy = vi.spyOn(crypto.subtle, 'digest').mockReturnValue(digestPromise)
+    render(<HashTool algorithm="SHA" />)
+    const input = screen.getByLabelText('待摘要文本')
+    fireEvent.change(input, { target: { value: 'keyboard digest' } })
+    input.focus()
+
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+
+    expect(digestSpy).toHaveBeenCalledTimes(SHA_ALGORITHMS.length)
+    expect(screen.getByRole('button', { name: '计算中…' })).toBeDisabled()
+
+    resolveDigest(new ArrayBuffer(64))
+    expect(await screen.findByText('SHA 摘要计算完成。')).toBeVisible()
+    expect(screen.getByRole('button', { name: '计算 SHA' })).toBeEnabled()
+    expect(input).toHaveFocus()
+    digestSpy.mockRestore()
+  })
+
   it('renders and copies four simultaneous SHA digest variants, including empty input', async () => {
     const user = userEvent.setup()
     const writeText = vi.fn().mockResolvedValue(undefined)
@@ -128,6 +150,21 @@ describe('HashTool SHA mode', () => {
 })
 
 describe('HashTool MD5 mode', () => {
+  it('preserves plain Enter, ignores composition, and calculates with Ctrl+Enter', () => {
+    render(<HashTool algorithm="MD5" />)
+    const input = screen.getByLabelText('待摘要文本')
+    fireEvent.change(input, { target: { value: 'abc' } })
+    input.focus()
+
+    fireEvent.keyDown(input, { key: 'Enter' })
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true, isComposing: true })
+    expect(screen.getByLabelText('MD5 小写摘要')).toHaveTextContent('等待计算')
+
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+    expect(screen.getByLabelText('MD5 小写摘要')).toHaveTextContent('900150983cd24fb0d6963f7d28e17f72')
+    expect(input).toHaveFocus()
+  })
+
   it('renders lower and upper digests as compact rows with accessible icon-only copy controls', async () => {
     const user = userEvent.setup()
     const { container } = render(<HashTool algorithm="MD5" />)

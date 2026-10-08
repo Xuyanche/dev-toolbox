@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { bytesToBase64Url, utf8Bytes } from '../../shared/bytes'
 import { JwtTool } from './JwtTool'
@@ -15,7 +15,142 @@ async function openGenerate(user: ReturnType<typeof userEvent.setup>) {
   return screen.getByTestId('jwt-generate-mode')
 }
 
+function flushParse() {
+  fireEvent.keyDown(screen.getByLabelText('JWT'), { key: 'Enter', ctrlKey: true })
+}
+
+function flushGenerate() {
+  fireEvent.keyDown(screen.getByLabelText('Claims / Payload JSON'), { key: 'Enter', ctrlKey: true })
+}
+
+async function waitForGeneratedToken() {
+  const output = screen.getByLabelText('生成的 JWT')
+  await waitFor(() => expect(parseJwt(output.textContent ?? '').ok).toBe(true))
+  return output
+}
+
 describe('JwtTool', () => {
+  it('executes parse only from the primary JWT input with Ctrl+Enter', async () => {
+    render(<JwtTool />)
+    const input = screen.getByLabelText('JWT')
+    const secret = screen.getByLabelText('解析 Secret（可选）')
+    setValue('JWT', knownToken)
+    input.focus()
+
+    fireEvent.keyDown(input, { key: 'Enter' })
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true, isComposing: true })
+    fireEvent.keyDown(secret, { key: 'Enter', ctrlKey: true })
+    expect(screen.getByLabelText('JWT Header')).toHaveTextContent('等待解析')
+
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+    expect(await screen.findByText('签名未校验')).toBeVisible()
+    expect(screen.getByLabelText('JWT Claims/Payload')).toHaveTextContent('John Doe')
+    expect(input).toHaveFocus()
+  })
+
+  it('executes generation only from the Claims input with Ctrl+Enter', async () => {
+    const user = userEvent.setup()
+    render(<JwtTool />)
+    await openGenerate(user)
+    const claims = screen.getByLabelText('Claims / Payload JSON')
+    const secret = screen.getByLabelText('生成 Secret（可选）')
+    setValue('Claims / Payload JSON', '{"sub":"keyboard"}')
+    claims.focus()
+
+    fireEvent.keyDown(claims, { key: 'Enter' })
+    fireEvent.keyDown(claims, { key: 'Enter', ctrlKey: true, isComposing: true })
+    fireEvent.keyDown(secret, { key: 'Enter', ctrlKey: true })
+    expect(screen.getByLabelText('生成的 JWT')).toHaveTextContent('等待生成')
+
+    fireEvent.keyDown(claims, { key: 'Enter', ctrlKey: true })
+    const parsed = parseJwt((await waitForGeneratedToken()).textContent ?? '')
+    expect(parsed.ok && parsed.value.payload).toEqual({ sub: 'keyboard' })
+    expect(claims).toHaveFocus()
+  })
+
+  it('keeps only the latest parse revision while signature verification is pending', async () => {
+    let resolveKey!: (key: CryptoKey) => void
+    const keyPromise = new Promise<CryptoKey>((resolve) => { resolveKey = resolve })
+    const importKeySpy = vi.spyOn(crypto.subtle, 'importKey').mockReturnValue(keyPromise)
+    const verifySpy = vi.spyOn(crypto.subtle, 'verify').mockResolvedValue(true)
+    render(<JwtTool />)
+    setValue('JWT', knownToken)
+    setValue('解析 Secret（可选）', 'your-256-bit-secret')
+    const input = screen.getByLabelText('JWT')
+
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+    expect(importKeySpy).toHaveBeenCalledOnce()
+
+    setValue('JWT', 'broken.token')
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+    expect(screen.getByText(/恰好包含三个/)).toBeVisible()
+
+    resolveKey({} as CryptoKey)
+    await Promise.resolve()
+    expect(screen.queryByText('签名有效')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('JWT Header')).toHaveTextContent('等待解析')
+    importKeySpy.mockRestore()
+    verifySpy.mockRestore()
+  })
+
+  it('automatically processes stable inputs and resets empty primary fields without clearing secrets', async () => {
+    const user = userEvent.setup()
+    render(<JwtTool />)
+
+    setValue('JWT', knownToken)
+    expect(await screen.findByText('签名未校验')).toBeVisible()
+    setValue('解析 Secret（可选）', 'your-256-bit-secret')
+    expect(await screen.findByText('签名有效')).toBeVisible()
+    setValue('JWT', '')
+    expect(screen.getByLabelText('JWT Header')).toHaveTextContent('等待解析')
+    expect(screen.getByLabelText('解析 Secret（可选）')).toHaveValue('your-256-bit-secret')
+
+    await openGenerate(user)
+    setValue('Claims / Payload JSON', '{"sub":"automatic"}')
+    setValue('生成 Secret（可选）', 'automatic secret')
+    let token = await waitForGeneratedToken()
+    let parsed = parseJwt(token.textContent ?? '')
+    expect(parsed.ok && parsed.value.payload).toEqual({ sub: 'automatic' })
+
+    await user.selectOptions(screen.getByLabelText('签名算法'), 'HS512')
+    token = await waitForGeneratedToken()
+    parsed = parseJwt(token.textContent ?? '')
+    expect(parsed.ok && parsed.value.header.alg).toBe('HS512')
+
+    setValue('Claims / Payload JSON', '')
+    expect(screen.getByLabelText('生成的 JWT')).toHaveTextContent('等待生成')
+    expect(screen.getByLabelText('生成 Secret（可选）')).toHaveValue('automatic secret')
+    expect(screen.getByLabelText('签名算法')).toHaveValue('HS512')
+  })
+
+  it('discards a stale generation completion after a newer snapshot finishes', async () => {
+    const pending: Array<(value: ArrayBuffer) => void> = []
+    const importKeySpy = vi.spyOn(crypto.subtle, 'importKey').mockResolvedValue({} as CryptoKey)
+    const signSpy = vi.spyOn(crypto.subtle, 'sign').mockImplementation(() => (
+      new Promise<ArrayBuffer>((resolve) => pending.push(resolve))
+    ))
+    const user = userEvent.setup()
+    render(<JwtTool />)
+    await openGenerate(user)
+    setValue('生成 Secret（可选）', 'revision secret')
+    setValue('Claims / Payload JSON', '{"revision":"older"}')
+    flushGenerate()
+    await waitFor(() => expect(pending).toHaveLength(1))
+
+    setValue('Claims / Payload JSON', '{"revision":"newer"}')
+    flushGenerate()
+    await waitFor(() => expect(pending).toHaveLength(2))
+    pending[1](new Uint8Array([2]).buffer)
+    const output = await waitForGeneratedToken()
+    expect(parseJwt(output.textContent ?? '')).toMatchObject({ ok: true, value: { payload: { revision: 'newer' } } })
+
+    pending[0](new Uint8Array([1]).buffer)
+    await Promise.resolve()
+    expect(parseJwt(output.textContent ?? '')).toMatchObject({ ok: true, value: { payload: { revision: 'newer' } } })
+    importKeySpy.mockRestore()
+    signSpy.mockRestore()
+  })
+
   it('omits the standalone local notice while preserving local context and security warnings', async () => {
     const user = userEvent.setup()
     render(<JwtTool />)
@@ -23,8 +158,8 @@ describe('JwtTool', () => {
     expect(screen.queryByText('本地处理')).not.toBeInTheDocument()
     expect(screen.getByText(/在浏览器本地解析 Claims/)).toBeVisible()
     await openGenerate(user)
-    expect(screen.getByText('无签名警告')).toBeVisible()
-    expect(screen.getByText(/当前将生成 alg: none 调试令牌/)).toBeVisible()
+    expect(screen.getByText(/Secret 为空，将生成无签名 JWT/)).toBeVisible()
+    expect(document.querySelector('.jwt-unsigned-warning')).toBeNull()
   })
 
   it('keeps stable equal-column workspaces with opposite parse and generation flow', async () => {
@@ -59,7 +194,11 @@ describe('JwtTool', () => {
     const generateGrid = generateMode.querySelector('.jwt-workspace-grid') as HTMLElement
     expect(generateWorkspace).toHaveClass(...parseWorkspace.classList)
     expect(generateGrid).toHaveAttribute('data-layout', 'equal-columns')
-    expect(Array.from(generateGrid.children).map((column) => column.getAttribute('data-column'))).toEqual(['generation-settings', 'generated-jwt'])
+    expect(Array.from(generateGrid.children).map((column) => column.getAttribute('data-column'))).toEqual(['generate-settings', 'generated-jwt'])
+    expect(screen.getByLabelText('生成 Secret（可选）').closest('.jwt-generate-settings-column')?.parentElement).toBe(generateGrid)
+    expect(screen.getByLabelText('生成的 JWT').closest('.jwt-generate-token-column')?.parentElement).toBe(generateGrid)
+    expect(screen.queryByRole('button', { name: '生成 JWT' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '清空生成' })).not.toBeInTheDocument()
     expect(screen.getByLabelText('生成的 JWT')).toHaveTextContent('等待生成')
     expect(screen.getByRole('button', { name: '复制生成的 JWT' })).toBeDisabled()
     const algorithm = screen.getByLabelText('签名算法')
@@ -67,12 +206,66 @@ describe('JwtTool', () => {
     expect(generateMode).not.toContainElement(algorithm)
   })
 
+  it('clears primary inputs from their title rows while preserving secrets, algorithms, and mode state', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    render(<JwtTool />)
+
+    let clearJwt = screen.getByRole('button', { name: '清空 JWT 输入' })
+    expect(clearJwt).toBeDisabled()
+    setValue('JWT', knownToken)
+    setValue('解析 Secret（可选）', 'parse secret')
+    flushParse()
+    expect(await screen.findByText('签名无效')).toBeVisible()
+    expect(Array.from(clearJwt.closest('.jwt-field-actions')?.querySelectorAll('button') ?? []).map((button) => button.getAttribute('aria-label')))
+      .toEqual(['复制 JWT 输入', '清空 JWT 输入'])
+    await user.click(screen.getByRole('button', { name: '复制 JWT 输入' }))
+    expect(await screen.findByText('JWT 输入 已复制到剪贴板。')).toBeVisible()
+
+    await openGenerate(user)
+    setValue('Claims / Payload JSON', '{"sub":"keep-generation"}')
+    setValue('生成 Secret（可选）', 'generate secret')
+    await user.selectOptions(screen.getByLabelText('签名算法'), 'HS512')
+    flushGenerate()
+    await waitForGeneratedToken()
+    const clearClaims = screen.getByRole('button', { name: '清空 Claims / Payload' })
+    expect(clearClaims).toBeEnabled()
+    expect(Array.from(clearClaims.closest('.jwt-field-actions')?.querySelectorAll('button') ?? []).map((button) => button.getAttribute('aria-label')))
+      .toEqual(['复制 Claims / Payload', '清空 Claims / Payload'])
+    await user.click(screen.getByRole('button', { name: '复制 Claims / Payload' }))
+    expect(await screen.findByText('Claims / Payload 已复制到剪贴板。')).toBeVisible()
+    await user.click(clearClaims)
+    expect(screen.getByLabelText('Claims / Payload JSON')).toHaveValue('')
+    expect(screen.getByLabelText('生成的 JWT')).toHaveTextContent('等待生成')
+    expect(screen.getByLabelText('生成 Secret（可选）')).toHaveValue('generate secret')
+    expect(screen.getByLabelText('签名算法')).toHaveValue('HS512')
+    expect(screen.queryByText('Claims / Payload 已复制到剪贴板。')).not.toBeInTheDocument()
+    expect(clearClaims).toBeDisabled()
+
+    await user.click(screen.getByRole('radio', { name: '解析' }))
+    clearJwt = screen.getByRole('button', { name: '清空 JWT 输入' })
+    expect(screen.getByLabelText('JWT')).toHaveValue(knownToken)
+    expect(screen.getByLabelText('JWT Header')).toHaveTextContent('HS256')
+    await user.click(clearJwt)
+    expect(screen.getByLabelText('JWT')).toHaveValue('')
+    expect(screen.getByLabelText('JWT Header')).toHaveTextContent('等待解析')
+    expect(screen.getByLabelText('JWT Claims/Payload')).toHaveTextContent('等待解析')
+    expect(screen.getByLabelText('解析 Secret（可选）')).toHaveValue('parse secret')
+    expect(screen.queryByText('JWT 输入 已复制到剪贴板。')).not.toBeInTheDocument()
+    expect(clearJwt).toBeDisabled()
+
+    await user.click(screen.getByRole('radio', { name: '生成' }))
+    expect(screen.getByLabelText('生成 Secret（可选）')).toHaveValue('generate secret')
+    expect(screen.getByLabelText('签名算法')).toHaveValue('HS512')
+  })
+
   it('decodes without trust, then reports valid and invalid UTF-8 secrets', async () => {
     const user = userEvent.setup()
     render(<JwtTool />)
     setValue('JWT', knownToken)
 
-    await user.click(screen.getByRole('button', { name: '解析 JWT' }))
+    flushParse()
     expect(await screen.findByText('签名未校验')).toBeVisible()
     expect(screen.queryByLabelText('JWT 签名算法')).not.toBeInTheDocument()
     expect(screen.getByLabelText('JWT Header')).toHaveTextContent('HS256')
@@ -85,30 +278,29 @@ describe('JwtTool', () => {
     expect(screen.queryByLabelText('JWT Claims/Payload')).not.toBeInTheDocument()
 
     setValue('解析 Secret（可选）', 'your-256-bit-secret')
-    expect(screen.getByText('Secret 已更改，请重新解析以更新签名状态。')).toBeVisible()
+    expect(screen.getByText('正在自动校验签名状态…')).toBeVisible()
     expect(screen.queryByText('签名未校验')).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: '解析 JWT' }))
+    flushParse()
     expect(await screen.findByText('签名有效')).toBeVisible()
 
     setValue('解析 Secret（可选）', 'wrong secret')
-    expect(screen.getByText('Secret 已更改，请重新解析以更新签名状态。')).toBeVisible()
+    expect(screen.getByText('正在自动校验签名状态…')).toBeVisible()
     expect(screen.queryByText('签名有效')).not.toBeInTheDocument()
     expect(screen.getByLabelText('JWT Header')).toHaveTextContent('HS256')
     expect(screen.getByLabelText('JWT Claims/Payload')).toHaveTextContent('John Doe')
-    await user.click(screen.getByRole('button', { name: '解析 JWT' }))
+    flushParse()
     expect(await screen.findByText('签名无效')).toBeVisible()
     expect(screen.getByText(/以下内容不可信/)).toBeVisible()
   })
 
   it('clears stale parsed output on malformed input and reports unsupported and unsigned tokens', async () => {
-    const user = userEvent.setup()
     render(<JwtTool />)
     setValue('JWT', knownToken)
-    await user.click(screen.getByRole('button', { name: '解析 JWT' }))
+    flushParse()
     expect(await screen.findByLabelText('JWT Header')).toBeVisible()
 
     setValue('JWT', 'broken.token')
-    await user.click(screen.getByRole('button', { name: '解析 JWT' }))
+    flushParse()
     expect(await screen.findByText(/恰好包含三个/)).toBeVisible()
     expect(screen.getByLabelText('JWT Header')).toHaveTextContent('等待解析')
     expect(screen.getByLabelText('JWT Claims/Payload')).toHaveTextContent('等待解析')
@@ -116,13 +308,13 @@ describe('JwtTool', () => {
 
     const unsupportedHeader = bytesToBase64Url(utf8Bytes(JSON.stringify({ alg: 'RS256', typ: 'JWT' })))
     setValue('JWT', `${unsupportedHeader}.e30.AA`)
-    await user.click(screen.getByRole('button', { name: '解析 JWT' }))
+    flushParse()
     expect(await screen.findByText('不支持的算法')).toBeVisible()
 
     const noneHeader = bytesToBase64Url(utf8Bytes(JSON.stringify({ alg: 'none', typ: 'JWT' })))
     setValue('JWT', `${noneHeader}.e30.`)
     setValue('解析 Secret（可选）', 'secret-cannot-upgrade-none')
-    await user.click(screen.getByRole('button', { name: '解析 JWT' }))
+    flushParse()
     expect(await screen.findByText('无签名')).toBeVisible()
     expect(screen.getByText(/不得用于身份认证或授权/)).toBeVisible()
   })
@@ -136,9 +328,9 @@ describe('JwtTool', () => {
     await user.selectOptions(screen.getByLabelText('签名算法'), algorithm)
     const preview = screen.getByLabelText('生成 JWT Header 预览')
     expect(JSON.parse(preview.textContent ?? '')).toEqual({ alg: algorithm, typ: 'JWT' })
-    await user.click(screen.getByRole('button', { name: '生成 JWT' }))
+    flushGenerate()
 
-    const token = await screen.findByLabelText('生成的 JWT')
+    const token = await waitForGeneratedToken()
     const parsed = parseJwt(token.textContent ?? '')
     expect(parsed.ok).toBe(true)
     if (!parsed.ok) return
@@ -179,8 +371,8 @@ describe('JwtTool', () => {
     expect(algorithm).toHaveValue('HS512')
     expect(JSON.parse(preview.textContent ?? '')).toEqual({ alg: 'none', typ: 'JWT' })
 
-    await user.click(screen.getByRole('button', { name: '生成 JWT' }))
-    const parsed = parseJwt((await screen.findByLabelText('生成的 JWT')).textContent ?? '')
+    flushGenerate()
+    const parsed = parseJwt((await waitForGeneratedToken()).textContent ?? '')
     expect(parsed.ok && parsed.value.header).toEqual(JSON.parse(preview.textContent ?? ''))
   })
 
@@ -188,12 +380,12 @@ describe('JwtTool', () => {
     const user = userEvent.setup()
     render(<JwtTool />)
     await openGenerate(user)
-    expect(screen.getByText(/当前将生成 alg: none/)).toBeVisible()
+    expect(screen.getByText(/Secret 为空，将生成无签名 JWT/)).toBeVisible()
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: '生成 JWT' }))
-    const token = await screen.findByLabelText('生成的 JWT')
+    flushGenerate()
+    const token = await waitForGeneratedToken()
     expect(token.textContent).toMatch(/\.$/)
-    expect(screen.getByText(/无签名 · 不得用于身份认证或授权/)).toBeVisible()
+    expect(document.querySelector('.jwt-result-warning')).toBeNull()
   })
 
   it('shows, copies, and clears the generation secret with independent state boundaries', async () => {
@@ -232,8 +424,8 @@ describe('JwtTool', () => {
     await user.click(copy)
     expect(await screen.findByText('无法访问剪贴板，请手动复制 Secret。')).toBeVisible()
 
-    await user.click(screen.getByRole('button', { name: '生成 JWT' }))
-    const token = await screen.findByLabelText('生成的 JWT')
+    flushGenerate()
+    const token = await waitForGeneratedToken()
     await user.click(clearSecret)
     expect(secret).toHaveValue('')
     expect(clearSecret).toBeDisabled()
@@ -244,7 +436,7 @@ describe('JwtTool', () => {
     expect(screen.queryByText('无法访问剪贴板，请手动复制 Secret。')).not.toBeInTheDocument()
 
     setValue('生成 Secret（可选）', 'preserved-by-clear-generation')
-    await user.click(screen.getByRole('button', { name: '清空生成' }))
+    setValue('Claims / Payload JSON', '')
     expect(secret).toHaveValue('preserved-by-clear-generation')
     expect(screen.getByLabelText('Claims / Payload JSON')).toHaveValue('')
     expect(screen.getByLabelText('生成的 JWT')).toHaveTextContent('等待生成')
@@ -262,12 +454,12 @@ describe('JwtTool', () => {
     await user.click(within(generateMode).getByRole('button', { name: '生成' }))
     const generatedSecret = within(generateMode).getByLabelText('生成 Secret（可选）')
     expect((generatedSecret as HTMLInputElement).value).toMatch(/^[A-Za-z0-9_-]{43}$/)
-    await user.click(within(generateMode).getByRole('button', { name: '生成 JWT' }))
-    const token = await screen.findByLabelText('生成的 JWT')
-    const resultColumn = token.closest('.jwt-generation-result') as HTMLElement
+    flushGenerate()
+    const token = await waitForGeneratedToken()
+    const resultArea = token.closest('.jwt-generate-token-field') as HTMLElement
     const textRegion = token.closest('.jwt-text-region') as HTMLElement
     const fieldHeading = token.closest('.jwt-text-field')?.querySelector('.field-heading') as HTMLElement
-    const copyJwt = within(resultColumn).getByRole('button', { name: '复制生成的 JWT' })
+    const copyJwt = within(resultArea).getByRole('button', { name: '复制生成的 JWT' })
     expect(fieldHeading).toContainElement(copyJwt)
     expect(textRegion).not.toContainElement(copyJwt)
     await user.click(copyJwt)
@@ -275,23 +467,23 @@ describe('JwtTool', () => {
     const successFeedback = await screen.findByText('JWT 已复制到剪贴板。')
     expect(successFeedback.closest('.jwt-copy-feedback')).not.toBeNull()
     expect(textRegion).not.toContainElement(successFeedback)
-    expect(within(resultColumn).getByRole('button', { name: '复制生成的 JWT' })).toBe(copyJwt)
+    expect(within(resultArea).getByRole('button', { name: '复制生成的 JWT' })).toBe(copyJwt)
 
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: vi.fn().mockRejectedValue(new Error('denied')) } })
     await user.click(copyJwt)
     const errorFeedback = await screen.findByText('无法访问剪贴板，请手动复制 JWT。')
     expect(errorFeedback.closest('.jwt-copy-feedback')).not.toBeNull()
     expect(textRegion).not.toContainElement(errorFeedback)
-    expect(within(resultColumn).getByRole('button', { name: '复制生成的 JWT' })).toBe(copyJwt)
+    expect(within(resultArea).getByRole('button', { name: '复制生成的 JWT' })).toBe(copyJwt)
 
     await user.click(screen.getByRole('radio', { name: '解析' }))
     expect(screen.getByLabelText('JWT')).toHaveValue(knownToken)
-    await user.click(screen.getByRole('button', { name: '清空解析' }))
+    setValue('JWT', '')
     expect(screen.getByLabelText('JWT')).toHaveValue('')
 
     await user.click(screen.getByRole('radio', { name: '生成' }))
     expect(screen.getByLabelText('生成 Secret（可选）')).not.toHaveValue('')
-    await user.click(screen.getByRole('button', { name: '清空生成' }))
+    setValue('Claims / Payload JSON', '')
     expect(screen.getByLabelText('Claims / Payload JSON')).toHaveValue('')
     expect(screen.getByLabelText('生成 Secret（可选）')).not.toHaveValue('')
     expect(screen.getByLabelText('生成的 JWT')).toHaveTextContent('等待生成')
@@ -307,7 +499,7 @@ describe('JwtTool', () => {
     expect(parseSecret).toHaveAttribute('type', 'password')
     setValue('JWT', knownToken)
     setValue('解析 Secret（可选）', 'parse-copy-secret')
-    await user.click(screen.getByRole('button', { name: '解析 JWT' }))
+    flushParse()
 
     const parseTargets = [
       ['复制 JWT 输入', knownToken],
@@ -331,7 +523,8 @@ describe('JwtTool', () => {
     await openGenerate(user)
     setValue('Claims / Payload JSON', '{"sub":"copy-all"}')
     setValue('生成 Secret（可选）', 'generate-copy-secret')
-    await user.click(screen.getByRole('button', { name: '生成 JWT' }))
+    flushGenerate()
+    await waitForGeneratedToken()
     const generateTargets = [
       ['复制生成 Header', screen.getByLabelText('生成 JWT Header 预览').textContent],
       ['复制 Claims / Payload', '{"sub":"copy-all"}'],
@@ -360,7 +553,7 @@ describe('JwtTool', () => {
     render(<JwtTool />)
 
     setValue('JWT', knownToken)
-    await user.click(screen.getByRole('button', { name: '解析 JWT' }))
+    flushParse()
     const payloadToggle = screen.getByRole('button', { name: 'Payload' })
     const registeredToggle = screen.getByRole('button', { name: '注册 Claim' })
     const sharedRegion = document.querySelector('.jwt-payload-view') as HTMLElement
@@ -387,7 +580,7 @@ describe('JwtTool', () => {
     const noneHeader = bytesToBase64Url(utf8Bytes(JSON.stringify({ alg: 'none', typ: 'JWT' })))
     const customPayload = bytesToBase64Url(utf8Bytes(JSON.stringify({ custom: true })))
     setValue('JWT', `${noneHeader}.${customPayload}.`)
-    await user.click(screen.getByRole('button', { name: '解析 JWT' }))
+    flushParse()
     expect(payloadToggle).toHaveAttribute('aria-pressed', 'true')
     await user.click(registeredToggle)
     expect(screen.getByText('Payload 中没有常见注册 Claim。')).toBeVisible()
@@ -401,7 +594,7 @@ describe('JwtTool', () => {
 
     setValue('JWT', knownToken)
     setValue('解析 Secret（可选）', 'your-256-bit-secret')
-    await user.click(screen.getByRole('button', { name: '解析 JWT' }))
+    flushParse()
     expect(await screen.findByText('签名有效')).toBeVisible()
     const headerText = screen.getByLabelText('JWT Header').textContent
     const payloadText = screen.getByLabelText('JWT Claims/Payload').textContent
@@ -421,11 +614,9 @@ describe('JwtTool', () => {
     expect(screen.getByLabelText('JWT Header').textContent).toBe(headerText)
     expect(screen.getByLabelText('JWT Claims/Payload').textContent).toBe(payloadText)
     expect(screen.queryByText('签名有效')).not.toBeInTheDocument()
-    expect(screen.getByText('Secret 已更改，请重新解析以更新签名状态。')).toBeVisible()
+    expect(screen.getByText('正在自动校验签名状态…')).toBeVisible()
 
-    await user.click(screen.getByRole('button', { name: '解析 JWT' }))
     expect(await screen.findByText('签名未校验')).toBeVisible()
-    expect(screen.queryByText('Secret 已更改，请重新解析以更新签名状态。')).not.toBeInTheDocument()
   })
 
   it('keeps sensitive operations local and usable with long content on narrow viewports', async () => {
@@ -439,17 +630,25 @@ describe('JwtTool', () => {
     await openGenerate(user)
     setValue('Claims / Payload JSON', JSON.stringify({ sub: 'alice', long: 'x'.repeat(5000) }))
     setValue('生成 Secret（可选）', 'never-log-this-secret')
-    await user.click(screen.getByRole('button', { name: '生成 JWT' }))
+    flushGenerate()
 
-    const output = await screen.findByLabelText('生成的 JWT')
+    const output = await waitForGeneratedToken()
     const preview = screen.getByLabelText('生成 JWT Header 预览')
     const grid = screen.getByTestId('jwt-generate-mode').querySelector('.jwt-generate-grid')
-    const settingsColumn = screen.getByTestId('jwt-generate-mode').querySelector('.jwt-generation-settings')
+    const claimsArea = screen.getByLabelText('Claims / Payload JSON').closest('.jwt-generation-payload-field')
+    const secretArea = screen.getByLabelText('生成 Secret（可选）').closest('.jwt-generate-secret')
+    const tokenArea = output.closest('.jwt-generate-token-field')
+    const settingsColumn = screen.getByLabelText('Claims / Payload JSON').closest('.jwt-generate-settings-column')
+    const tokenColumn = output.closest('.jwt-generate-token-column')
     expect(output).toHaveClass('jwt-token-output')
     expect(preview).toHaveClass('jwt-header-preview-output')
     expect(grid).not.toBeNull()
     expect(grid).toHaveAttribute('data-layout', 'equal-columns')
-    expect(settingsColumn).not.toBeNull()
+    expect(settingsColumn?.parentElement).toBe(grid)
+    expect(tokenColumn?.parentElement).toBe(grid)
+    expect(claimsArea?.parentElement).toBe(settingsColumn)
+    expect(secretArea?.parentElement).toBe(settingsColumn)
+    expect(tokenArea?.parentElement).toBe(tokenColumn)
     expect(preview).toBeVisible()
     expect(output.textContent?.length).toBeGreaterThan(5000)
     expect(fetchSpy).not.toHaveBeenCalled()

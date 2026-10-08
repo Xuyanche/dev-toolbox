@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { EncodingTool } from './EncodingTool'
 
@@ -79,5 +79,39 @@ describe('EncodingTool Unicode mode', () => {
     expect(within(unicode).getByRole('radio', { name: '解码' })).toBeChecked()
     expect(within(base64).getByLabelText('待处理文本')).toHaveValue('base64 input')
     expect(within(base64).getByRole('radio', { name: '编码' })).toBeChecked()
+  })
+})
+
+describe('EncodingTool keyboard execution', () => {
+  it.each([
+    { kind: 'url' as const, input: 'a b', expected: 'a%20b' },
+    { kind: 'unicode' as const, input: 'A', expected: '\\u0041' },
+    { kind: 'base64' as const, input: 'abc', expected: 'YWJj' },
+  ])('executes $kind from its primary input with Ctrl+Enter', ({ kind, input, expected }) => {
+    render(<EncodingTool kind={kind} />)
+    const primaryInput = screen.getByLabelText('待处理文本')
+
+    fireEvent.change(primaryInput, { target: { value: input } })
+    primaryInput.focus()
+    expect(fireEvent.keyDown(primaryInput, { key: 'Enter', ctrlKey: true })).toBe(false)
+
+    expect(screen.getByLabelText('转换结果')).toHaveValue(expected)
+    expect(primaryInput).toHaveFocus()
+  })
+
+  it('uses current URL options while preserving plain Enter and IME composition', async () => {
+    const user = userEvent.setup()
+    render(<EncodingTool kind="url" />)
+    const input = screen.getByLabelText('待处理文本')
+    const output = screen.getByLabelText('转换结果')
+    fireEvent.change(input, { target: { value: 'https://example.com/a b?x=1' } })
+    await user.click(screen.getByRole('radio', { name: '完整 URL' }))
+
+    fireEvent.keyDown(input, { key: 'Enter' })
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true, isComposing: true })
+    expect(output).toHaveValue('')
+
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+    expect(output).toHaveValue('https://example.com/a%20b?x=1')
   })
 })

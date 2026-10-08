@@ -1,5 +1,6 @@
-import { useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { FieldIconButton, Panel, Segmented, StatusMessage, ToolHeader, type StatusState } from '../../shell/ui'
+import { runPrimaryActionShortcut } from '../../shared/keyboard'
 import {
   deriveJwtHeader,
   generateJwt,
@@ -15,6 +16,8 @@ import {
 
 type JwtMode = 'parse' | 'generate'
 type ParsedContentView = 'payload' | 'registered'
+
+const AUTO_PROCESS_DELAY = 300
 
 const trustPresentation: Record<JwtTrustStatus, { label: string; tone: string; message: string }> = {
   valid: { label: '签名有效', tone: 'valid', message: '签名与当前 UTF-8 Secret 匹配。' },
@@ -119,9 +122,10 @@ export function JwtTool() {
   const [parsed, setParsed] = useState<ParsedJwt | null>(null)
   const [parsedContentView, setParsedContentView] = useState<ParsedContentView>('payload')
   const [trust, setTrust] = useState<JwtTrustStatus | null>(null)
-  const [parsedSecretSnapshot, setParsedSecretSnapshot] = useState<string | null>(null)
   const [parseStatus, setParseStatus] = useState<StatusState>(null)
   const [parseCopyStatus, setParseCopyStatus] = useState<StatusState>(null)
+  const parseRevisionRef = useRef(0)
+  const parseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [claimsInput, setClaimsInput] = useState('{\n  "sub": "1234567890"\n}')
   const [generateSecretInput, setGenerateSecretInput] = useState('')
@@ -129,6 +133,8 @@ export function JwtTool() {
   const [generatedToken, setGeneratedToken] = useState('')
   const [generateStatus, setGenerateStatus] = useState<StatusState>(null)
   const [generateCopyStatus, setGenerateCopyStatus] = useState<StatusState>(null)
+  const generateRevisionRef = useRef(0)
+  const generateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   async function copyText(value: string, feedbackLabel: string, setCopyStatus: (status: StatusState) => void) {
     if (!value) return
@@ -144,64 +150,158 @@ export function JwtTool() {
   const copyParseText = (value: string, feedbackLabel: string) => copyText(value, feedbackLabel, setParseCopyStatus)
   const copyGenerateText = (value: string, feedbackLabel: string) => copyText(value, feedbackLabel, setGenerateCopyStatus)
 
-  async function runParse() {
+  const clearParseResult = useCallback(() => {
     setParsed(null)
     setParsedContentView('payload')
     setTrust(null)
-    setParsedSecretSnapshot(null)
     setParseStatus(null)
     setParseCopyStatus(null)
-    const result = parseJwt(parseInput)
+  }, [])
+
+  const executeParse = useCallback(async (input: string, secret: string, revision: number) => {
+    const result = parseJwt(input)
+    if (revision !== parseRevisionRef.current) return
     if (!result.ok) {
+      setParsed(null)
+      setParsedContentView('payload')
+      setTrust(null)
       setParseStatus({ kind: 'error', message: result.message })
       return
     }
-    const secretForParse = parseSecret
-    const nextTrust = await verifyJwt(result.value, secretForParse)
-    setParsed(result.value)
-    setTrust(nextTrust)
-    setParsedSecretSnapshot(secretForParse)
-    setParseStatus({
-      kind: nextTrust === 'valid' ? 'success' : 'info',
-      message: nextTrust === 'valid' ? '解析及签名校验完成。' : '解析完成，请根据签名状态判断内容可信度。',
-    })
-  }
 
-  function clearParse() {
-    setParseInput('')
-    setParseSecret('')
-    setParsed(null)
+    setParsed(result.value)
     setParsedContentView('payload')
     setTrust(null)
-    setParsedSecretSnapshot(null)
+    setParseStatus(null)
+    const nextTrust = await verifyJwt(result.value, secret)
+    if (revision !== parseRevisionRef.current) return
+    setTrust(nextTrust)
+  }, [])
+
+  const flushParse = useCallback(() => {
+    if (parseTimerRef.current !== null) {
+      clearTimeout(parseTimerRef.current)
+      parseTimerRef.current = null
+    }
+    const revision = ++parseRevisionRef.current
+    if (!parseInput.trim()) {
+      clearParseResult()
+      return
+    }
     setParseStatus(null)
     setParseCopyStatus(null)
+    void executeParse(parseInput, parseSecret, revision)
+  }, [clearParseResult, executeParse, parseInput, parseSecret])
+
+  useEffect(() => {
+    if (mode !== 'parse') return
+    const revision = ++parseRevisionRef.current
+    if (!parseInput.trim()) {
+      clearParseResult()
+      return
+    }
+    parseTimerRef.current = setTimeout(() => {
+      parseTimerRef.current = null
+      void executeParse(parseInput, parseSecret, revision)
+    }, AUTO_PROCESS_DELAY)
+    return () => {
+      if (parseTimerRef.current !== null) {
+        clearTimeout(parseTimerRef.current)
+        parseTimerRef.current = null
+      }
+      parseRevisionRef.current += 1
+    }
+  }, [clearParseResult, executeParse, mode, parseInput, parseSecret])
+
+  function clearParseInput() {
+    if (parseTimerRef.current !== null) {
+      clearTimeout(parseTimerRef.current)
+      parseTimerRef.current = null
+    }
+    parseRevisionRef.current += 1
+    setParseInput('')
+    clearParseResult()
   }
 
   function deleteParseSecret() {
     setParseSecret('')
+    setTrust(null)
     setParseCopyStatus(null)
   }
 
-  async function runGenerate() {
+  const clearGenerateResult = useCallback(() => {
     setGeneratedToken('')
     setGenerateStatus(null)
     setGenerateCopyStatus(null)
-    const payload = parseJsonObject(claimsInput, 'Claims/Payload')
+  }, [])
+
+  const executeGenerate = useCallback(async (
+    claims: string,
+    secret: string,
+    selectedAlgorithm: HmacAlgorithm,
+    revision: number,
+  ) => {
+    const payload = parseJsonObject(claims, 'Claims/Payload')
+    if (revision !== generateRevisionRef.current) return
     if (!payload.ok) {
+      setGeneratedToken('')
       setGenerateStatus({ kind: 'error', message: payload.message })
       return
     }
-    const result = await generateJwt(payload.value, generateSecretInput, algorithm)
+    const result = await generateJwt(payload.value, secret, selectedAlgorithm)
+    if (revision !== generateRevisionRef.current) return
     if (!result.ok) {
+      setGeneratedToken('')
       setGenerateStatus({ kind: 'error', message: result.message })
       return
     }
     setGeneratedToken(result.value)
-    setGenerateStatus({
-      kind: result.warning ? 'info' : 'success',
-      message: result.warning ?? `${algorithm} 签名 JWT 生成完成。`,
-    })
+    setGenerateStatus(null)
+  }, [])
+
+  const flushGenerate = useCallback(() => {
+    if (generateTimerRef.current !== null) {
+      clearTimeout(generateTimerRef.current)
+      generateTimerRef.current = null
+    }
+    const revision = ++generateRevisionRef.current
+    if (!claimsInput.trim()) {
+      clearGenerateResult()
+      return
+    }
+    setGenerateStatus(null)
+    setGenerateCopyStatus(null)
+    void executeGenerate(claimsInput, generateSecretInput, algorithm, revision)
+  }, [algorithm, claimsInput, clearGenerateResult, executeGenerate, generateSecretInput])
+
+  useEffect(() => {
+    if (mode !== 'generate') return
+    const revision = ++generateRevisionRef.current
+    if (!claimsInput.trim()) {
+      clearGenerateResult()
+      return
+    }
+    generateTimerRef.current = setTimeout(() => {
+      generateTimerRef.current = null
+      void executeGenerate(claimsInput, generateSecretInput, algorithm, revision)
+    }, AUTO_PROCESS_DELAY)
+    return () => {
+      if (generateTimerRef.current !== null) {
+        clearTimeout(generateTimerRef.current)
+        generateTimerRef.current = null
+      }
+      generateRevisionRef.current += 1
+    }
+  }, [algorithm, claimsInput, clearGenerateResult, executeGenerate, generateSecretInput, mode])
+
+  function clearClaimsInput() {
+    if (generateTimerRef.current !== null) {
+      clearTimeout(generateTimerRef.current)
+      generateTimerRef.current = null
+    }
+    generateRevisionRef.current += 1
+    setClaimsInput('')
+    clearGenerateResult()
   }
 
   function createSecret() {
@@ -211,18 +311,13 @@ export function JwtTool() {
       return
     }
     setGenerateSecretInput(result.value)
+    setGeneratedToken('')
     setGenerateCopyStatus(null)
-    setGenerateStatus({ kind: 'success', message: '已生成新的 256 位随机 Secret。' })
+    setGenerateStatus(null)
   }
 
   function deleteGenerateSecret() {
     setGenerateSecretInput('')
-    setGenerateCopyStatus(null)
-  }
-
-  function clearGenerate() {
-    setClaimsInput('')
-    setAlgorithm('HS256')
     setGeneratedToken('')
     setGenerateStatus(null)
     setGenerateCopyStatus(null)
@@ -231,7 +326,6 @@ export function JwtTool() {
   const claims = parsed ? Object.entries(getRegisteredClaims(parsed.payload)) : []
   const registeredClaimsText = claims.map(([name, value]) => `${name}: ${formatClaim(name, value)}`).join('\n')
   const trustInfo = trust ? trustPresentation[trust] : null
-  const trustIsStale = parsed !== null && parsedSecretSnapshot !== null && parseSecret !== parsedSecretSnapshot
   const parsedHeader = parsed ? formatJson(parsed.header) : ''
   const parsedPayload = parsed ? formatJson(parsed.payload) : ''
   const activeParsedText = parsedContentView === 'payload' ? parsedPayload : registeredClaimsText
@@ -281,7 +375,16 @@ export function JwtTool() {
         {mode === 'generate' ? (
           <label className="select-field jwt-algorithm-control">
             <span>签名算法</span>
-            <select aria-label="签名算法" value={algorithm} onChange={(event) => setAlgorithm(event.target.value as HmacAlgorithm)}>
+            <select
+              aria-label="签名算法"
+              value={algorithm}
+              onChange={(event) => {
+                setAlgorithm(event.target.value as HmacAlgorithm)
+                setGeneratedToken('')
+                setGenerateStatus(null)
+                setGenerateCopyStatus(null)
+              }}
+            >
               <option value="HS256">HS256</option>
               <option value="HS384">HS384</option>
               <option value="HS512">HS512</option>
@@ -302,27 +405,32 @@ export function JwtTool() {
                     copyLabel="复制 JWT 输入"
                     feedbackLabel="JWT 输入"
                     onCopy={copyParseText}
+                    afterCopy={<JwtDeleteButton label="清空 JWT 输入" disabled={!parseInput} onClick={clearParseInput} />}
                     fieldClassName="jwt-fill-field"
                     regionClassName="jwt-fill-region"
-                    hint="仅接受严格的三段式、无填充 Base64URL JWT。"
+                    hint={parseStatus?.kind === 'error' ? (
+                      <span className="jwt-field-error" role="alert">{parseStatus.message}</span>
+                    ) : '仅接受严格的三段式、无填充 Base64URL JWT。'}
                   >
                     <textarea
                       aria-label="JWT"
                       value={parseInput}
                       onChange={(event) => {
-                        setParseInput(event.target.value)
+                        const nextInput = event.target.value
+                        setParseInput(nextInput)
+                        setParsed(null)
+                        setParsedContentView('payload')
+                        setTrust(null)
+                        setParseStatus(null)
                         setParseCopyStatus(null)
+                        if (!nextInput.trim()) clearParseResult()
                       }}
                       rows={10}
                       spellCheck={false}
                       placeholder="粘贴 header.payload.signature"
+                      onKeyDown={(event) => runPrimaryActionShortcut(event, 'ctrl-enter', flushParse)}
                     />
                   </JwtTextRegion>
-                  <div className="action-row jwt-workspace-actions">
-                    <button className="button button-primary" type="button" onClick={runParse}>解析 JWT</button>
-                    <button className="button button-ghost" type="button" onClick={clearParse}>清空解析</button>
-                  </div>
-                  <div className="jwt-operation-status"><StatusMessage status={parseStatus} /></div>
                 </div>
 
                 <div className="jwt-workspace-column jwt-parse-result-column" data-column="parse-result">
@@ -374,14 +482,14 @@ export function JwtTool() {
                     fieldClassName="jwt-secret-field"
                     hint={(
                       <span
-                        className={`jwt-trust-line${trustIsStale ? ' jwt-trust-warning' : trustInfo ? ` jwt-trust-${trustInfo.tone}` : ''}`}
+                        className={`jwt-trust-line${trustInfo ? ` jwt-trust-${trustInfo.tone}` : ''}`}
                         role="status"
                         aria-live="polite"
                       >
-                        {trustIsStale ? (
-                          <span>Secret 已更改，请重新解析以更新签名状态。</span>
-                        ) : trustInfo ? (
+                        {trustInfo ? (
                           <><strong>{trustInfo.label}</strong><span>{trustInfo.message}</span></>
+                        ) : parsed ? (
+                          <span>正在自动校验签名状态…</span>
                         ) : (
                           <span>解析后显示签名校验状态。</span>
                         )}
@@ -395,6 +503,7 @@ export function JwtTool() {
                       value={parseSecret}
                       onChange={(event) => {
                         setParseSecret(event.target.value)
+                        setTrust(null)
                         setParseCopyStatus(null)
                       }}
                       autoComplete="off"
@@ -413,7 +522,7 @@ export function JwtTool() {
           <div className="jwt-workspace-panel">
             <Panel title="生成工作区">
               <div className="jwt-workspace-grid jwt-generate-grid" data-layout="equal-columns">
-                <div className="jwt-workspace-column jwt-generation-settings" data-column="generation-settings">
+                <div className="jwt-workspace-column jwt-generate-settings-column" data-column="generate-settings">
                   <JwtTextRegion
                     label="JWT Header"
                     value={generatedHeaderText}
@@ -432,20 +541,28 @@ export function JwtTool() {
                     copyLabel="复制 Claims / Payload"
                     feedbackLabel="Claims / Payload"
                     onCopy={copyGenerateText}
+                    afterCopy={<JwtDeleteButton label="清空 Claims / Payload" disabled={!claimsInput} onClick={clearClaimsInput} />}
                     fieldClassName="jwt-fill-field jwt-generation-payload-field"
                     regionClassName="jwt-fill-region"
-                    hint="顶层必须是 JSON 对象；自定义 Claim 会原样保留。"
+                    hint={generateStatus?.kind === 'error' ? (
+                      <span className="jwt-field-error" role="alert">{generateStatus.message}</span>
+                    ) : '顶层必须是 JSON 对象；自定义 Claim 会原样保留。'}
                   >
                     <textarea
                       aria-label="Claims / Payload JSON"
                       value={claimsInput}
                       onChange={(event) => {
-                        setClaimsInput(event.target.value)
+                        const nextClaims = event.target.value
+                        setClaimsInput(nextClaims)
+                        setGeneratedToken('')
+                        setGenerateStatus(null)
                         setGenerateCopyStatus(null)
+                        if (!nextClaims.trim()) clearGenerateResult()
                       }}
                       rows={8}
                       spellCheck={false}
                       placeholder={'{\n  "sub": "1234567890"\n}'}
+                      onKeyDown={(event) => runPrimaryActionShortcut(event, 'ctrl-enter', flushGenerate)}
                     />
                   </JwtTextRegion>
 
@@ -456,7 +573,15 @@ export function JwtTool() {
                     feedbackLabel="Secret"
                     onCopy={copyGenerateText}
                     fieldClassName="jwt-generate-secret"
-                    hint="留空时只能生成 alg: none 调试令牌。"
+                    hint={(
+                      <span
+                        className={`jwt-secret-warning-line${generateSecretInput ? '' : ' jwt-secret-warning-active'}`}
+                        role="status"
+                        aria-live="polite"
+                      >
+                        {generateSecretInput ? '\u00a0' : 'Secret 为空，将生成无签名 JWT，不得用于身份认证或授权。'}
+                      </span>
+                    )}
                     beforeCopy={(
                       <button className="jwt-secret-generate-button" type="button" title="生成新 Secret" onClick={createSecret}>
                         生成
@@ -472,6 +597,8 @@ export function JwtTool() {
                       value={generateSecretInput}
                       onChange={(event) => {
                         setGenerateSecretInput(event.target.value)
+                        setGeneratedToken('')
+                        setGenerateStatus(null)
                         setGenerateCopyStatus(null)
                       }}
                       autoComplete="new-password"
@@ -479,37 +606,19 @@ export function JwtTool() {
                       placeholder="输入 UTF-8 Secret"
                     />
                   </JwtTextRegion>
-
-                  <div className="jwt-warning-slot">
-                    {!generateSecretInput ? (
-                      <div className="jwt-unsigned-warning notice notice-warning">
-                        <strong>无签名警告</strong>
-                        <span>当前将生成 alg: none 调试令牌，不得用于身份认证或授权。</span>
-                      </div>
-                    ) : null}
-                  </div>
-                  <div className="action-row jwt-workspace-actions">
-                    <button className="button button-primary" type="button" onClick={runGenerate}>生成 JWT</button>
-                    <button className="button button-ghost" type="button" onClick={clearGenerate}>清空生成</button>
-                  </div>
-                  <div className="jwt-operation-status"><StatusMessage status={generateStatus} /></div>
                 </div>
-
-                <div className="jwt-workspace-column jwt-generation-result" data-column="generated-jwt">
+                <div className="jwt-workspace-column jwt-generate-token-column" data-column="generated-jwt">
                   <JwtTextRegion
                     label="生成的 JWT"
                     value={generatedToken}
                     copyLabel="复制生成的 JWT"
                     feedbackLabel="JWT"
                     onCopy={copyGenerateText}
-                    fieldClassName="jwt-fill-field"
+                    fieldClassName="jwt-fill-field jwt-generate-token-field"
                     regionClassName="jwt-fill-region"
                   >
                     <output className="code-output jwt-token-output" aria-label="生成的 JWT">{generatedToken || '等待生成'}</output>
                   </JwtTextRegion>
-                  <div className="jwt-result-warning-slot">
-                    {generatedToken && !generateSecretInput ? <div className="jwt-result-warning">无签名 · 不得用于身份认证或授权</div> : null}
-                  </div>
                 </div>
               </div>
               <div className="jwt-copy-feedback"><StatusMessage status={generateCopyStatus} /></div>

@@ -7,6 +7,37 @@ function setValue(value: string) {
 }
 
 describe('JsonTool', () => {
+  it('formats from the primary input with Ctrl+Enter while preserving editing shortcuts and focus', () => {
+    render(<JsonTool />)
+    const input = screen.getByLabelText('JSON 输入')
+    setValue('{"user":{"name":"Ada"}}')
+    input.focus()
+
+    fireEvent.keyDown(input, { key: 'Enter' })
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true, isComposing: true })
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true, repeat: true })
+    expect(input).toHaveValue('{"user":{"name":"Ada"}}')
+    expect(screen.queryByRole('list', { name: 'JSON 树形结构' })).not.toBeInTheDocument()
+
+    expect(fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })).toBe(false)
+    expect(input).toHaveValue('{\n  "user": {\n    "name": "Ada"\n  }\n}')
+    expect(screen.getByRole('list', { name: 'JSON 树形结构' })).toBeVisible()
+    expect(screen.getByText('JSON 已在输入框内格式化。')).toBeVisible()
+    expect(input).toHaveFocus()
+  })
+
+  it('reports the same formatting error for invalid Ctrl+Enter input', () => {
+    render(<JsonTool />)
+    const input = screen.getByLabelText('JSON 输入')
+    setValue('{"ok":true,}')
+
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+
+    expect(input).toHaveValue('{"ok":true,}')
+    expect(screen.getByText(/JSON 解析失败/)).toBeVisible()
+    expect(screen.queryByRole('list', { name: 'JSON 树形结构' })).not.toBeInTheDocument()
+  })
+
   it('uses one workspace for five operations and formats or minifies JSON in place', async () => {
     const user = userEvent.setup()
     render(<JsonTool />)

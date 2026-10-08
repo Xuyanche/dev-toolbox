@@ -1,8 +1,65 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SymmetricCryptoTool } from './SymmetricCryptoTool'
+import * as symmetricModule from './symmetric'
 
 describe('SymmetricCryptoTool', () => {
+  it.each(['AES', 'SM4'] as const)('executes %s only from the primary input with Ctrl+Enter', async (algorithm) => {
+    render(<SymmetricCryptoTool algorithm={algorithm} />)
+    const key = screen.getByLabelText('密钥')
+    const parameter = screen.getByLabelText('IV / 偏移量')
+    const input = screen.getByLabelText('明文（UTF-8）')
+    fireEvent.change(key, { target: { value: '000102030405060708090a0b0c0d0e0f' } })
+    fireEvent.change(parameter, { target: { value: '101112131415161718191a1b1c1d1e1f' } })
+    fireEvent.change(input, { target: { value: `${algorithm} keyboard` } })
+    input.focus()
+
+    fireEvent.keyDown(input, { key: 'Enter' })
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true, isComposing: true })
+    fireEvent.keyDown(key, { key: 'Enter', ctrlKey: true })
+    fireEvent.keyDown(parameter, { key: 'Enter', ctrlKey: true })
+    expect(screen.getByLabelText('处理结果')).toHaveValue('')
+
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+    expect(await screen.findByText(new RegExp(`${algorithm} 加密完成`))).toBeVisible()
+    expect(screen.getByLabelText('处理结果')).not.toHaveValue('')
+    expect(input).toHaveFocus()
+  })
+
+  it('does not enable the primary-input shortcut for DES', () => {
+    render(<SymmetricCryptoTool algorithm='DES' />)
+    fireEvent.change(screen.getByLabelText('密钥'), { target: { value: '0001020304050607' } })
+    const input = screen.getByLabelText('明文（UTF-8）')
+    fireEvent.change(input, { target: { value: 'DES keyboard' } })
+
+    expect(fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })).toBe(true)
+    expect(screen.getByLabelText('处理结果')).toHaveValue('')
+  })
+
+  it('blocks duplicate symmetric operations while execution is pending', async () => {
+    let resolveExecution!: (result: Awaited<ReturnType<typeof symmetricModule.executeSymmetric>>) => void
+    const executionPromise = new Promise<Awaited<ReturnType<typeof symmetricModule.executeSymmetric>>>((resolve) => {
+      resolveExecution = resolve
+    })
+    const executeSpy = vi.spyOn(symmetricModule, 'executeSymmetric').mockReturnValue(executionPromise)
+    render(<SymmetricCryptoTool algorithm='AES' />)
+    fireEvent.change(screen.getByLabelText('密钥'), { target: { value: '000102030405060708090a0b0c0d0e0f' } })
+    fireEvent.change(screen.getByLabelText('IV / 偏移量'), { target: { value: '101112131415161718191a1b1c1d1e1f' } })
+    const input = screen.getByLabelText('明文（UTF-8）')
+    fireEvent.change(input, { target: { value: 'single flight' } })
+
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+
+    expect(executeSpy).toHaveBeenCalledOnce()
+    expect(screen.getByRole('button', { name: '开始加密' })).toBeDisabled()
+
+    resolveExecution({ ok: true, value: new Uint8Array(16) })
+    expect(await screen.findByText(/AES 加密完成/)).toBeVisible()
+    expect(screen.getByRole('button', { name: '开始加密' })).toBeEnabled()
+    executeSpy.mockRestore()
+  })
+
   it('encrypts and decrypts AES text with the same parameters', async () => {
     const user = userEvent.setup()
     render(<SymmetricCryptoTool algorithm='AES' />)
