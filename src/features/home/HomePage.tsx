@@ -7,7 +7,7 @@ export function HomePage({ groups = getEnabledToolGroups(DEFAULT_TOOL_AVAILABILI
         <div className='home-hero-copy'>
           <span className='eyebrow'>DEV TOOLBOX / HOME</span>
           <h1 id='home-title'>开发者工具箱</h1>
-          <p>把常用的随机、密码、摘要、时间与编码操作集中在一个简洁的本地工作台中。</p>
+          <p>把常用的随机、密码、摘要、时间、编码与文本对比操作集中在一个简洁的本地工作台中。</p>
         </div>
         <div className='home-local-card'>
           <span className='home-local-icon' aria-hidden='true'>●</span>

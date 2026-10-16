@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { FieldIconButton, Panel, Segmented, StatusMessage, ToolHeader, type StatusState } from '../../shell/ui'
+import { FieldIconButton, Segmented, StatusMessage, ToolHeader, type StatusState } from '../../shell/ui'
 import { runPrimaryActionShortcut } from '../../shared/keyboard'
 import {
   deriveJwtHeader,
@@ -396,7 +396,7 @@ export function JwtTool() {
       {mode === 'parse' ? (
         <div className="jwt-mode" data-testid="jwt-parse-mode">
           <div className="jwt-workspace-panel">
-            <Panel title="解析工作区">
+            <section className="panel" aria-label="解析工作区">
               <div className="jwt-workspace-grid jwt-parse-grid" data-layout="equal-columns">
                 <div className="jwt-workspace-column jwt-parse-input-column" data-column="jwt-input">
                   <JwtTextRegion
@@ -514,13 +514,13 @@ export function JwtTool() {
                 </div>
               </div>
               <div className="jwt-copy-feedback"><StatusMessage status={parseCopyStatus} /></div>
-            </Panel>
+            </section>
           </div>
         </div>
       ) : (
         <div className="jwt-mode" data-testid="jwt-generate-mode">
           <div className="jwt-workspace-panel">
-            <Panel title="生成工作区">
+            <section className="panel" aria-label="生成工作区">
               <div className="jwt-workspace-grid jwt-generate-grid" data-layout="equal-columns">
                 <div className="jwt-workspace-column jwt-generate-settings-column" data-column="generate-settings">
                   <JwtTextRegion
@@ -622,7 +622,7 @@ export function JwtTool() {
                 </div>
               </div>
               <div className="jwt-copy-feedback"><StatusMessage status={generateCopyStatus} /></div>
-            </Panel>
+            </section>
           </div>
         </div>
       )}

@@ -7,6 +7,14 @@ import { CopyButton } from './ui'
 describe('toolbox shell', () => {
   afterEach(() => vi.unstubAllGlobals())
 
+  it('omits the text tools group, homepage entry and component when disabled', () => {
+    render(<App availability={{ ...DEFAULT_TOOL_AVAILABILITY, 'text-diff': false }} />)
+    expect(screen.queryByRole('button', { name: '文本工具' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '文本工具' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '打开文本对比' })).not.toBeInTheDocument()
+    expect(screen.queryByText('载入示例')).not.toBeInTheDocument()
+  })
+
   it('defaults to the homepage with every desktop category collapsed', () => {
     render(<App />)
     expect(screen.getByRole('region', { name: '开发者工具箱' })).toBeVisible()
@@ -16,16 +24,16 @@ describe('toolbox shell', () => {
     const desktopNav = screen.getByRole('navigation', { name: '工具导航' })
     const groups = within(desktopNav).getAllByRole('group')
     expect(groups.map((group) => group.querySelector('.nav-group-toggle > span:first-child')?.textContent))
-      .toEqual(['随机数工具', '对称加密', '非对称加密', '摘要算法', '时间工具', '编码工具'])
-    for (const label of ['随机数工具', '对称加密', '非对称加密', '摘要算法', '时间工具', '编码工具']) {
+      .toEqual(['随机数工具', '对称加密', '非对称加密', '摘要算法', '时间工具', '编码工具', '文本工具'])
+    for (const label of ['随机数工具', '对称加密', '非对称加密', '摘要算法', '时间工具', '编码工具', '文本工具']) {
       expect(within(desktopNav).getByRole('button', { name: label })).toHaveAttribute('aria-expanded', 'false')
     }
-    expect(within(desktopNav).getAllByRole('button')).toHaveLength(6)
+    expect(within(desktopNav).getAllByRole('button')).toHaveLength(7)
     expect(desktopNav.querySelector('[aria-current="page"]')).toBeNull()
 
     const mobileNav = screen.getByRole('navigation', { name: '移动工具导航' })
     expect(within(mobileNav).getAllByRole('button').map((button) => button.textContent))
-      .toEqual(['色子模拟器', '随机数生成器', 'AES', 'SM4', 'RSA', 'MD5', 'SHA', '时间戳', 'URL 编解码', 'Unicode', 'Base64', 'JWT', 'JSON'])
+      .toEqual(['色子模拟器', '随机数生成器', 'AES', 'SM4', 'RSA', 'MD5', 'SHA', '时间戳', 'URL 编解码', 'Unicode', 'Base64', 'JWT', 'JSON', '文本对比'])
     expect(mobileNav.querySelector('[aria-current="page"]')).toBeNull()
     expect(screen.getAllByRole('button', { name: '返回介绍首页' })).toHaveLength(2)
   })
@@ -99,7 +107,7 @@ describe('toolbox shell', () => {
     const user = userEvent.setup()
     render(<App />)
     const desktopNav = screen.getByRole('navigation', { name: '工具导航' })
-    const toggles = ['随机数工具', '对称加密', '非对称加密', '摘要算法', '时间工具', '编码工具']
+    const toggles = ['随机数工具', '对称加密', '非对称加密', '摘要算法', '时间工具', '编码工具', '文本工具']
       .map((name) => within(desktopNav).getByRole('button', { name }))
 
     for (const toggle of toggles) {
@@ -252,8 +260,8 @@ describe('toolbox shell', () => {
     await user.click(screen.getByRole('button', { name: 'Unpin navigation' }))
     expect(screen.getByRole('button', { name: 'Pin navigation' })).toBeInTheDocument()
     const mobileNav = screen.getByRole('navigation', { name: '移动工具导航' })
-    expect(within(mobileNav).getAllByRole('group')).toHaveLength(6)
-    expect(within(mobileNav).getAllByRole('button')).toHaveLength(13)
+    expect(within(mobileNav).getAllByRole('group')).toHaveLength(7)
+    expect(within(mobileNav).getAllByRole('button')).toHaveLength(14)
     expect(within(mobileNav).getByRole('button', { name: 'Unicode' })).toBeVisible()
     expect(within(mobileNav).getByRole('button', { name: 'SHA' })).toBeVisible()
     expect(screen.getByRole('region', { name: '开发者工具箱' })).toBeVisible()

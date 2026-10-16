@@ -10,10 +10,11 @@ import {
 
 type SidebarMode = 'pinned' | 'unpinned-open' | 'collapsed' | 'peeking'
 
-const FOCUS_TOOL_IDS = new Set<ToolId>(['aes', 'base64', 'des', 'json', 'jwt', 'sm4', 'unicode', 'url'])
+const FOCUS_TOOL_IDS = new Set<ToolId>(['aes', 'base64', 'des', 'json', 'jwt', 'sm4', 'unicode', 'url', 'text-diff'])
 
 export function App({ availability = DEFAULT_TOOL_AVAILABILITY }: { availability?: ToolAvailability }) {
   const [active, setActive] = useState<ToolId | null>(null)
+  const [textDiffVisited, setTextDiffVisited] = useState(false)
   const [expandedGroup, setExpandedGroup] = useState<ToolGroupId | null>(null)
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>('pinned')
   const toolGroups = useMemo(() => getEnabledToolGroups(availability), [availability])
@@ -37,6 +38,7 @@ export function App({ availability = DEFAULT_TOOL_AVAILABILITY }: { availability
   }, [active, expandedGroup, toolGroups, tools])
 
   function selectTool(groupId: ToolGroupId, toolId: ToolId) {
+    if (toolId === 'text-diff') setTextDiffVisited(true)
     setExpandedGroup(groupId)
     setActive(toolId)
   }
@@ -176,7 +178,7 @@ export function App({ availability = DEFAULT_TOOL_AVAILABILITY }: { availability
         {active === null ? <HomePage groups={toolGroups} /> : null}
         {tools.map((tool) => (
           <section key={tool.id} hidden={active !== tool.id} aria-label={tool.name}>
-            {tool.element}
+            {tool.id !== 'text-diff' || textDiffVisited ? tool.element : null}
           </section>
         ))}
         <footer><span>Dev Toolbox · 所有操作均在本地完成</span><span>无需账号 · 无上传 · 无追踪</span></footer>

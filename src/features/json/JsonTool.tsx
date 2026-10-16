@@ -253,21 +253,17 @@ export function JsonTool() {
       />
       <div className="json-workspace" data-layout="tree-right" data-testid="json-workspace">
         <div className="json-text-workspace">
-          <Panel title="JSON 输入">
+          <Panel title="JSON 输入" aside={
+            <FieldIconButton
+              kind="copy"
+              className="json-input-copy"
+              iconClassName="json-copy-icon"
+              label="复制 JSON 输入"
+              disabled={!jsonInput}
+              onClick={() => copyValue(jsonInput, 'JSON 输入已复制到剪贴板。')}
+            />
+          }>
             <div className="field json-input-field">
-              <span className="field-heading">
-                <span className="field-label">JSON 输入</span>
-                <span className="json-input-actions">
-                  <FieldIconButton
-                    kind="copy"
-                    className="json-input-copy"
-                    iconClassName="json-copy-icon"
-                    label="复制 JSON 输入"
-                    disabled={!jsonInput}
-                    onClick={() => copyValue(jsonInput, 'JSON 输入已复制到剪贴板。')}
-                  />
-                </span>
-              </span>
               <span className="json-input-frame">
                 <textarea
                   aria-label="JSON 输入"

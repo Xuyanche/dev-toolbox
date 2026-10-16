@@ -13,6 +13,7 @@
     "unicode": true,
     "base64": true,
     "jwt": true,
-    "json": true
+    "json": true,
+    "text-diff": true
   }
 }

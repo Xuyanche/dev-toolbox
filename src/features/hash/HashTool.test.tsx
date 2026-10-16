@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { HashTool } from './HashTool'
 import { SHA_ALGORITHMS } from './hash'
@@ -96,12 +96,12 @@ describe('HashTool SHA mode', () => {
     render(<HashTool algorithm="SHA" />)
     setInput('first')
     await user.click(screen.getByRole('button', { name: '计算 SHA' }))
-    const first = screen.getByLabelText('SHA-256 小写摘要').textContent
     expect(await screen.findByText('SHA 摘要计算完成。')).toBeVisible()
+    const first = screen.getByLabelText('SHA-256 小写摘要').textContent
 
     setInput('second')
     await user.click(screen.getByRole('button', { name: '计算 SHA' }))
-    expect(screen.getByLabelText('SHA-256 小写摘要').textContent).not.toBe(first)
+    await waitFor(() => expect(screen.getByLabelText('SHA-256 小写摘要').textContent).not.toBe(first))
     expect(screen.queryAllByText('等待计算')).toHaveLength(0)
 
     await user.click(screen.getByRole('button', { name: '清空' }))

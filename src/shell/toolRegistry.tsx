@@ -8,9 +8,10 @@ import { RandomNumberGeneratorTool } from '../features/random-number/RandomNumbe
 import { RsaTool } from '../features/rsa/RsaTool'
 import { SymmetricCryptoTool } from '../features/symmetric/SymmetricCryptoTool'
 import { TimestampTool } from '../features/timestamp/TimestampTool'
+import { TextDiffEntry } from '../features/text-diff/TextDiffEntry'
 
-export type ToolId = 'aes' | 'base64' | 'des' | 'dice' | 'json' | 'jwt' | 'md5' | 'random-number' | 'rsa' | 'sha' | 'sm4' | 'timestamp' | 'unicode' | 'url'
-export type ToolGroupId = 'random' | 'symmetric' | 'asymmetric' | 'digest' | 'time' | 'encoding'
+export type ToolId = 'aes' | 'base64' | 'des' | 'dice' | 'json' | 'jwt' | 'md5' | 'random-number' | 'rsa' | 'sha' | 'sm4' | 'timestamp' | 'unicode' | 'url' | 'text-diff'
+export type ToolGroupId = 'random' | 'symmetric' | 'asymmetric' | 'digest' | 'time' | 'encoding' | 'text'
 export type ToolAvailability = Record<ToolId, boolean>
 
 export interface ToolDefinition {
@@ -88,6 +89,13 @@ export const TOOL_GROUPS: ToolGroup[] = [
       { id: 'json', name: 'JSON', short: '格式化与转义', icon: '{}', element: <JsonTool /> },
     ],
   },
+  {
+    id: 'text',
+    name: '文本工具',
+    homeIcon: '≠',
+    homeDescription: '对比 YAML 原文，辅助重排字段并直接编辑融合结果。',
+    tools: [{ id: 'text-diff', name: '文本对比', short: '比较与融合', icon: '≠', element: <TextDiffEntry /> }],
+  },
 ]
 
 export const TOOL_IDS = TOOL_GROUPS.flatMap((group) => group.tools.map((tool) => tool.id))
@@ -107,6 +115,7 @@ export const DEFAULT_TOOL_AVAILABILITY: ToolAvailability = {
   timestamp: true,
   unicode: true,
   url: true,
+  'text-diff': true,
 }
 
 export function getEnabledToolGroups(availability: ToolAvailability): ToolGroup[] {

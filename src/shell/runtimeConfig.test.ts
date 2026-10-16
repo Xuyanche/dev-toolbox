@@ -16,6 +16,11 @@ describe('runtime tool configuration', () => {
     })
   })
 
+  it('enables text comparison by default and accepts its runtime override', () => {
+    expect(DEFAULT_TOOL_AVAILABILITY['text-diff']).toBe(true)
+    expect(parseRuntimeConfig({ tools: { 'text-diff': false } })['text-diff']).toBe(false)
+  })
+
   it.each([
     null,
     [],

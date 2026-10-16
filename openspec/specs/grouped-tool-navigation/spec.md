@@ -7,7 +7,7 @@
 ## Requirements
 
 ### Requirement: Desktop navigation hierarchy
-系统 SHALL 在左侧导航中使用可折叠分类按钮和视觉嵌套的子工具构成两级层级，并 SHALL 从以下基础顺序中过滤运行时关闭的工具：随机数工具下的色子模拟器、随机数生成器；对称加密下的 AES、DES、SM4；非对称加密下的 RSA；摘要算法下的 MD5、SHA；时间工具下的时间戳；编码工具下的 URL 编解码、Unicode、Base64、JWT、JSON。系统 SHALL 省略过滤后为空的分类，并 SHALL 保持剩余分类和工具的相对顺序。桌面导航 SHALL 同时至多展开一个分类；介绍首页显示时 SHALL 收起全部分类。
+系统 SHALL 在左侧导航中使用可折叠分类按钮和视觉嵌套的子工具构成两级层级，并 SHALL 从以下基础顺序中过滤运行时关闭的工具：随机数工具下的色子模拟器、随机数生成器；对称加密下的 AES、DES、SM4；非对称加密下的 RSA；摘要算法下的 MD5、SHA；时间工具下的时间戳；编码工具下的 URL 编解码、Unicode、Base64、JWT、JSON；文本工具下的文本对比。系统 SHALL 省略过滤后为空的分类，并 SHALL 保持剩余分类和工具的相对顺序。桌面导航 SHALL 同时至多展开一个分类；介绍首页显示时 SHALL 收起全部分类。
 
 #### Scenario: View grouped desktop navigation
 - **WHEN** 用户在显示左侧导航的桌面视口打开应用
@@ -33,6 +33,10 @@
 - **WHEN** `JSON` 已启用且用户展开“编码工具”分类并选择 `JSON`
 - **THEN** 系统显示 JSON 工具并保持“编码工具”分类展开
 
+#### Scenario: Select text comparison from its own category
+- **WHEN** `text-diff` 已启用且用户展开“文本工具”并选择“文本对比”
+- **THEN** 系统显示文本对比工作区并保持“文本工具”展开，该入口不属于“编码工具”
+
 ### Requirement: Default active tool
 系统 SHALL 在新的页面会话首次加载时默认显示介绍首页而不是激活具体工具，并 SHALL 在用户选择工具后才在桌面和移动导航中标识该工具为当前项。
 
@@ -45,7 +49,7 @@
 - **THEN** 系统显示所选工具、展开其桌面分类并在桌面和移动导航中将该工具标记为当前项
 
 ### Requirement: Navigation order and labels
-系统 SHALL 使用以下基础工具显示名称与顺序：`色子模拟器`、`随机数生成器`、`AES`、`DES`、`SM4`、`RSA`、`MD5`、`SHA`、`时间戳`、`URL 编解码`、`Unicode`、`Base64`、`JWT` 和 `JSON`。系统 SHALL 从该基础列表中过滤运行时关闭的工具，并 SHALL 在所有导航呈现中保持剩余工具的分类和相对顺序。
+系统 SHALL 使用以下基础工具显示名称与顺序：`色子模拟器`、`随机数生成器`、`AES`、`DES`、`SM4`、`RSA`、`MD5`、`SHA`、`时间戳`、`URL 编解码`、`Unicode`、`Base64`、`JWT`、`JSON` 和 `文本对比`。系统 SHALL 从该基础列表中过滤运行时关闭的工具，并 SHALL 在所有导航呈现中保持剩余工具的分类和相对顺序。
 
 #### Scenario: Compare desktop and mobile order
 - **WHEN** 用户分别查看桌面和移动导航
@@ -54,6 +58,10 @@
 #### Scenario: Hide DES by default
 - **WHEN** 应用使用内置工具可用性默认值
 - **THEN** 桌面和移动导航均不显示 `DES`，而 `AES` 与 `SM4` 保持原有相对顺序
+
+#### Scenario: Place text tools after encoding tools
+- **WHEN** 文本对比与编码工具均已启用
+- **THEN** 桌面、移动和首页目录均在“编码工具”之后显示独立“文本工具”分类，子工具名为“文本对比”
 
 ### Requirement: Mobile grouped navigation
 系统 SHALL 在移动端保留非空分类与其中启用工具的关联和相对顺序，并 SHALL 允许在有限宽度中访问每个启用工具且不裁切工具名称。关闭的工具和空分类 SHALL NOT 出现在移动导航中。
@@ -75,7 +83,7 @@
 - **THEN** 移动导航省略对应工具或空分类，且其他工具仍可按原相对顺序访问
 
 ### Requirement: Grouped navigation accessibility
-系统 SHALL 为导航分组和折叠按钮提供可识别语义，折叠按钮 SHALL 暴露 `aria-expanded` 和所控制的工具区域；键盘焦点 SHALL 按视觉顺序到达六个分类按钮及当前展开分类内的工具，收起分类内的工具 SHALL 不进入焦点顺序；当前工具 SHALL 具有程序化状态。
+系统 SHALL 为导航分组和折叠按钮提供可识别语义，折叠按钮 SHALL 暴露 `aria-expanded` 和所控制的工具区域；键盘焦点 SHALL 按视觉顺序到达当前非空分类按钮及当前展开分类内的工具，收起分类内的工具 SHALL 不进入焦点顺序；当前工具 SHALL 具有程序化状态。
 
 #### Scenario: Navigate groups with a keyboard
 - **WHEN** 用户仅使用键盘浏览桌面导航并展开“随机数工具”
@@ -84,6 +92,10 @@
 #### Scenario: Switch tools without losing page state
 - **WHEN** 用户在一个工具中输入内容、切换到另一分类的工具并返回
 - **THEN** 当前页面会话内原工具状态保持不变
+
+#### Scenario: Reach text tools with a keyboard
+- **WHEN** 用户通过键盘展开“文本工具”并激活“文本对比”
+- **THEN** 焦点可到达该一级分类及子工具，展开和当前项状态可被辅助技术识别
 
 ### Requirement: Desktop collapsible sidebar
 系统 SHALL 在显示桌面左侧导航的视口中提供图钉式侧栏控制。钉住状态 SHALL 保持当前左侧导航占据固定布局宽度、主功能区位于其右侧的展示方式，并 SHALL 在标题与 icon 右侧显示图钉控制。用户拔起图钉时，系统 SHALL 保持完整侧栏可见，直到鼠标离开侧栏区域后才进入收起状态。收起状态 SHALL 在左侧保留一个窄竖条作为鼠标触发区和键盘入口，并 SHALL 让主功能区扩展占据除窄竖条外的可用屏幕宽度；主要工作区 SHALL 比钉住状态使用更大的可用宽度，适用时也 SHALL 提供更大的工作区高度。收起状态下，当鼠标进入窄竖条或临时展开的导航区域时，系统 SHALL 以覆盖层方式临时展开完整导航及其背景；该临时展开 SHALL NOT 改变主功能区宽度或触发主功能区重新排版。用户在临时展开状态点击图钉时，系统 SHALL 重新钉住侧栏并恢复固定布局。侧栏图钉状态 SHALL NOT 持久化，刷新页面后 SHALL 回到钉住展开状态。移动视口 SHALL 保持现有移动分组导航行为，不受桌面侧栏收起模式影响。
@@ -130,3 +142,14 @@
 #### Scenario: Compare category controls
 - **WHEN** 用户查看多个不同展开状态的桌面分类按钮
 - **THEN** 各分类文字和箭头占用一致的对齐区域，按钮整体排列保持稳定
+
+### Requirement: Text comparison registration and availability
+系统 SHALL 使用工具 ID `text-diff` 将“文本对比”默认启用并注册在独立一级“文本工具”分类中。运行时配置、桌面导航、移动导航、首页和组件挂载 SHALL 使用同一可用性判断；关闭 `text-diff` 后 SHALL 隐藏该工具及其空分类且不挂载其组件。现有分类及工具的相对顺序 SHALL 保持不变。
+
+#### Scenario: Disable text comparison everywhere
+- **WHEN** 有效运行时配置将 `tools.text-diff` 设为 false
+- **THEN** 桌面导航、移动导航和首页均不显示“文本工具”或“文本对比”，文本对比组件不挂载，其他工具保持原顺序
+
+#### Scenario: Open text comparison from desktop or mobile navigation
+- **WHEN** 文本对比已启用且用户在桌面或移动“文本工具”分类中激活“文本对比”
+- **THEN** 系统进入同一个文本对比工作区，当前项状态一致；首页目录仅展示统一能力介绍，不为文本对比单独提供跳转按钮
